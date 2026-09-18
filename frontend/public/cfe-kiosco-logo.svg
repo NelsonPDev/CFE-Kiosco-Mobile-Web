@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 768 768" role="img" aria-labelledby="title desc">
+  <title id="title">CFE Kiosco Mobile</title>
+  <desc id="desc">Logo circular verde de CFE Kiosco Mobile</desc>
+  <defs>
+    <radialGradient id="green" cx="35%" cy="25%" r="80%">
+      <stop offset="0" stop-color="#35a56b"/>
+      <stop offset="0.55" stop-color="#007a3d"/>
+      <stop offset="1" stop-color="#003f28"/>
+    </radialGradient>
+    <linearGradient id="cream" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fffdf4"/>
+      <stop offset="1" stop-color="#f6f0e2"/>
+    </linearGradient>
+  </defs>
+  <circle cx="384" cy="384" r="376" fill="url(#green)" stroke="#f6f0e2" stroke-width="8"/>
+  <circle cx="384" cy="384" r="350" fill="none" stroke="#35a56b" stroke-opacity=".6" stroke-width="4"/>
+  <g fill="none" stroke="#f6f0e2" stroke-width="18" stroke-linejoin="round">
+    <rect x="286" y="84" width="196" height="190" rx="28"/>
+    <path d="M346 84v-18h76v18M373 104h22" stroke="#35a56b"/>
+  </g>
+  <g fill="url(#cream)" font-family="Arial, sans-serif" font-weight="900" text-anchor="middle">
+    <text x="384" y="394" font-size="188" letter-spacing="-10">CFE</text>
+    <text x="384" y="548" font-size="104" letter-spacing="4">KIOSCO</text>
+    <text x="384" y="650" font-size="92" letter-spacing="3">MOBILE</text>
+  </g>
+</svg>

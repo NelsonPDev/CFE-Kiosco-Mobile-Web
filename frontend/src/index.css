@@ -1,0 +1,55 @@
+﻿:root {
+  --cfe-green-deep: #003f28;
+  --cfe-green: #007a3d;
+  --cfe-green-dark: #005c2e;
+  --cfe-green-light: #35a56b;
+  --cfe-green-soft: #e7f4ec;
+  --cfe-red: #c8102e;
+  --logo-cream: #f6f0e2;
+  --cfe-gray: #f8f9fa;
+  --cfe-white: #ffffff;
+  --cfe-text: #003f28;
+  --cfe-text-muted: #4f6259;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background-color: var(--cfe-gray);
+  color: var(--cfe-text);
+  min-height: 100vh;
+}
+
+#root {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  text-align: left;
+}
+
+.btn-cfe {
+  background-color: var(--cfe-green);
+  color: var(--cfe-white);
+  border: none;
+  padding: 12px 20px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+}
+
+.btn-cfe:hover {
+  background-color: var(--cfe-green-dark);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+h1, h2, h3, h4 {
+  font-family: 'Segoe UI', sans-serif;
+}
