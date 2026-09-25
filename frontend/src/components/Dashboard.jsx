@@ -57,13 +57,22 @@ const Dashboard = ({ user, onLogout }) => {
     });
   }, [devices, searchTerm, statusFilter]);
 
+  const selectDevice = (device) => {
+    if (!device) {
+      setSelectedDevice(null);
+      return;
+    }
+
+    setSelectedDevice({ ...device, selectionNonce: Date.now() });
+  };
+
   const selectedVisibleDevice = filteredDevices.find(
     (device) => device.id === selectedDevice?.id,
   ) || null;
 
   const openDeviceModal = (device, isEditing = false) => {
     setDeviceModal({ device: { ...device }, isEditing });
-    setSelectedDevice(device);
+    selectDevice(device);
   };
 
   const handleSaveDevice = async (event, section = 'all') => {
@@ -173,7 +182,7 @@ const Dashboard = ({ user, onLogout }) => {
           setStatusFilter(status);
           setIsFilterOpen(false);
         }}
-        onSelectDevice={setSelectedDevice}
+        onSelectDevice={selectDevice}
         onOpenDeviceInfo={openDeviceModal}
         onOpenManagerPanel={() => setIsManagerPanelOpen(true)}
         onOpenCatalogManager={() => setIsCatalogModalOpen(true)}
@@ -189,8 +198,8 @@ const Dashboard = ({ user, onLogout }) => {
           <div className="map-wrapper">
             <DeviceMap
               devices={filteredDevices}
-              selectedDevice={selectedVisibleDevice}
-              onSelectDevice={(device) => setSelectedDevice(device)}
+              selectedDevice={selectedDevice}
+              onSelectDevice={selectDevice}
             />
 
             {selectedVisibleDevice && (
