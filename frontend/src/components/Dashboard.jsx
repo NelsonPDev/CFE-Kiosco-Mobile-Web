@@ -16,6 +16,7 @@ const Dashboard = ({ user, onLogout }) => {
   const [selectedDevice, setSelectedDevice] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('Todos');
+  const [areaFilter, setAreaFilter] = useState('Todas');
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [isManagerPanelOpen, setIsManagerPanelOpen] = useState(false);
   const [isCatalogModalOpen, setIsCatalogModalOpen] = useState(false);
@@ -45,17 +46,36 @@ const Dashboard = ({ user, onLogout }) => {
   }, []);
 
   const isAdmin = user.role === 'admin';
+  const availableAreas = useMemo(
+    () => Array.from(new Set(devices.map((device) => device.location).filter(Boolean))).sort(),
+    [devices],
+  );
+
   const filteredDevices = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
 
     return devices.filter((device) => {
-      const matchesSearch = [device.name, device.id, device.location]
-        .some((value) => value.toLowerCase().includes(normalizedSearch));
-      const matchesStatus = statusFilter === 'Todos' || device.status === statusFilter;
+      const searchableValues = [
+        device.name,
+        device.id,
+        device.location,
+        device.workerName,
+        device.workerRpe,
+        device.phoneNumber,
+        device.imei,
+        device.inventoryNumber,
+        device.brand,
+        device.model,
+        device.role,
+      ].filter(Boolean).map((value) => String(value));
 
-      return matchesSearch && matchesStatus;
+      const matchesSearch = !normalizedSearch || searchableValues.some((value) => value.toLowerCase().includes(normalizedSearch));
+      const matchesStatus = statusFilter === 'Todos' || device.status === statusFilter;
+      const matchesArea = areaFilter === 'Todas' || device.location === areaFilter;
+
+      return matchesSearch && matchesStatus && matchesArea;
     });
-  }, [devices, searchTerm, statusFilter]);
+  }, [devices, searchTerm, statusFilter, areaFilter]);
 
   const selectDevice = (device) => {
     if (!device) {
@@ -175,12 +195,17 @@ const Dashboard = ({ user, onLogout }) => {
         isAdmin={isAdmin}
         searchTerm={searchTerm}
         statusFilter={statusFilter}
+        areaFilter={areaFilter}
+        availableAreas={availableAreas}
         isFilterOpen={isFilterOpen}
         onSearchChange={(event) => setSearchTerm(event.target.value)}
         onFilterToggle={() => setIsFilterOpen((isOpen) => !isOpen)}
         onStatusChange={(status) => {
           setStatusFilter(status);
           setIsFilterOpen(false);
+        }}
+        onAreaChange={(area) => {
+          setAreaFilter(area);
         }}
         onSelectDevice={selectDevice}
         onOpenDeviceInfo={openDeviceModal}

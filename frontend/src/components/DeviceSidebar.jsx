@@ -6,10 +6,13 @@ const DeviceSidebar = ({
   isAdmin,
   searchTerm,
   statusFilter,
+  areaFilter,
+  availableAreas,
   isFilterOpen,
   onSearchChange,
   onFilterToggle,
   onStatusChange,
+  onAreaChange,
   onSelectDevice,
   onOpenDeviceInfo,
   onOpenManagerPanel,
@@ -26,16 +29,26 @@ const DeviceSidebar = ({
       <div className="filter-toolbar">
         <label className="search-field">
           <span className="search-icon" aria-hidden="true">⌕</span>
-          <input type="search" value={searchTerm} onChange={onSearchChange} placeholder="Buscar..." aria-label="Buscar teléfono" />
+          <input type="search" value={searchTerm} onChange={onSearchChange} placeholder="RPE, IMEI, inventario, teléfono" aria-label="Buscar teléfono" />
         </label>
         <button className={`filter-toggle ${statusFilter !== 'Todos' ? 'filter-toggle-active' : ''}`} type="button" onClick={onFilterToggle} aria-expanded={isFilterOpen} aria-label="Mostrar filtros">
-          <span aria-hidden="true">≡</span>Filtros
+          <span aria-hidden="true">≡</span>
         </button>
       </div>
       {isFilterOpen && (
-        <div className="filter-menu" role="group" aria-label="Filtrar por estado">
+        <div className="filter-menu" role="group" aria-label="Filtrar dispositivos">
           <span>Estado</span>
           {deviceStatuses.map((status) => <button className={statusFilter === status ? 'filter-option-active' : ''} type="button" key={status} onClick={() => onStatusChange(status)}>{status}</button>)}
+
+          <div className="filter-area-field">
+            <span>Área</span>
+            <select value={areaFilter} onChange={(event) => onAreaChange(event.target.value)}>
+              <option value="Todas">Todas</option>
+              {availableAreas.map((area) => (
+                <option key={area} value={area}>{area}</option>
+              ))}
+            </select>
+          </div>
         </div>
       )}
     </div>

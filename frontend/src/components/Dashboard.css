@@ -169,7 +169,8 @@
 }
 
 .search-field input,
-.filter-field select {
+.filter-field select,
+.filter-area-field select {
   width: 100%;
   border: 1px solid rgba(246, 240, 226, 0.24);
   border-radius: 6px;
@@ -180,24 +181,23 @@
 }
 
 .search-field input {
-  padding: 11px 12px 11px 36px;
+  min-height: 42px;
+  padding: 11px 12px 11px 40px;
 }
 
 .filter-toggle {
   display: flex;
+  width: 42px;
   min-height: 42px;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 9px 12px;
+  padding: 0;
   border: 1px solid rgba(246, 240, 226, 0.24);
   border-radius: 6px;
   background-color: rgba(255, 255, 255, 0.08);
   color: var(--cfe-white);
   cursor: pointer;
-  font-size: 0.76rem;
-  font-weight: 700;
-  white-space: nowrap;
+  font-size: 1.1rem;
   transition: all 0.2s ease;
 }
 
@@ -209,7 +209,8 @@
 
 .filter-toggle span {
   color: var(--cfe-green-light);
-  font-size: 1rem;
+  font-size: 1.2rem;
+  line-height: 1;
 }
 
 .search-field input::placeholder {
@@ -217,7 +218,8 @@
 }
 
 .search-field input:focus,
-.filter-field select:focus {
+.filter-field select:focus,
+.filter-area-field select:focus {
   border-color: var(--cfe-green-light);
   box-shadow: 0 0 0 3px rgba(53, 165, 107, 0.2);
   background-color: rgba(255, 255, 255, 0.12);
@@ -233,18 +235,21 @@
 
 .search-icon {
   position: absolute;
-  top: 11px;
+  top: 50%;
   left: 12px;
   color: var(--cfe-green-light);
   font-size: 1.2rem;
   pointer-events: none;
+  transform: translateY(-50%);
 }
 
-.filter-field {
+.filter-field,
+.filter-area-field {
   margin-top: 12px;
 }
 
-.filter-field span {
+.filter-field span,
+.filter-area-field span {
   display: block;
   margin-bottom: 5px;
   color: #b9d6c5;
@@ -259,8 +264,8 @@
   top: 64px;
   right: 0;
   display: grid;
-  min-width: 154px;
-  gap: 3px;
+  min-width: 180px;
+  gap: 8px;
   padding: 8px;
   border: 1px solid rgba(53, 165, 107, 0.45);
   border-radius: 5px;
@@ -294,11 +299,13 @@
   color: #d9eee1;
 }
 
-.filter-field select {
+.filter-field select,
+.filter-area-field select {
   padding: 9px 10px;
 }
 
-.filter-field option {
+.filter-field option,
+.filter-area-field option {
   color: var(--cfe-text);
 }
 

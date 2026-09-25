@@ -168,13 +168,13 @@ const DeviceInfoModal = ({
               <div className="device-detail-column">
                 <div><span>Trabajador asignado</span><strong>{device.workerName}</strong></div>
                 <div><span>RPE</span><strong>{device.workerRpe}</strong></div>
-                <div><span>Ubicación</span><strong>{device.location}</strong></div>
+                <div><span>Área</span><strong>{device.location}</strong></div>
                 <div><span>Puesto</span><strong>{device.role || 'Operador'}</strong></div>
               </div>
 
               <div className="device-detail-column">
-                <div><span>Dispositivo</span><strong>{device.displayName || device.name}</strong></div>
-                <div><span>ID</span><strong>{device.id}</strong></div>
+                <div><span>No. Inventario</span><strong>{device.inventoryNumber || device.id || 'Sin inventario'}</strong></div>
+                <div><span>IMEI</span><strong>{device.imei || 'Sin IMEI'}</strong></div>
                 <div><span>Teléfono</span><strong>{device.phoneNumber}</strong></div>
                 <div><span>Marca/Modelo</span><strong>{[device.brand, device.model].filter(Boolean).join(' / ') || 'Sin información'}</strong></div>
               </div>
