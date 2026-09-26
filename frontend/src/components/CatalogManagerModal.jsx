@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { api } from '../services/api';
 
 const CatalogManagerModal = ({ departments = [], models = [], onClose, onCatalogChange }) => {
@@ -8,56 +8,72 @@ const CatalogManagerModal = ({ departments = [], models = [], onClose, onCatalog
   const [departmentDraft, setDepartmentDraft] = useState('');
   const [newBrand, setNewBrand] = useState('');
   const [selectedBrand, setSelectedBrand] = useState('');
+  const [brandDraft, setBrandDraft] = useState('');
   const [selectedModelId, setSelectedModelId] = useState('');
+  const [targetModelBrand, setTargetModelBrand] = useState('');
   const [modelDraft, setModelDraft] = useState({ marca: '', modelo: '' });
   const [newModel, setNewModel] = useState({ marca: '', modelo: '' });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  const brandOptions = [...new Set(models.map((item) => item.marca).filter(Boolean))];
-  const departmentOptions = departments ?? [];
-  const modelOptions = models.filter((item) => !selectedBrand || item.marca === selectedBrand);
+  const brandOptions = useMemo(
+    () => [...new Set(models.map((item) => item.marca).filter(Boolean))],
+    [models],
+  );
+  const modelOptions = useMemo(
+    () => models.filter((item) => item.modelo && item.marca === selectedBrand),
+    [models, selectedBrand],
+  );
 
   useEffect(() => {
-    if (departmentOptions.length > 0 && !selectedDepartmentId) {
-      setSelectedDepartmentId(String(departmentOptions[0].id));
-      setDepartmentDraft(departmentOptions[0].nombre || '');
+    if (departments.length > 0 && !selectedDepartmentId) {
+      setSelectedDepartmentId(String(departments[0].id));
+      setDepartmentDraft(departments[0].nombre || '');
     }
-  }, [departmentOptions, selectedDepartmentId]);
+  }, [departments, selectedDepartmentId]);
 
   useEffect(() => {
     if (brandOptions.length > 0 && !selectedBrand) {
       setSelectedBrand(brandOptions[0]);
+      setBrandDraft(brandOptions[0]);
+      setNewModel((current) => ({ ...current, marca: brandOptions[0] }));
     }
   }, [brandOptions, selectedBrand]);
 
-  useEffect(() => {
-    const currentDepartment = departmentOptions.find((item) => String(item.id) === String(selectedDepartmentId));
-    setDepartmentDraft(currentDepartment?.nombre || '');
-  }, [departmentOptions, selectedDepartmentId]);
-
-  useEffect(() => {
-    const currentModel = modelOptions.find((item) => String(item.id) === String(selectedModelId));
-    setModelDraft({
-      marca: currentModel?.marca || selectedBrand || '',
-      modelo: currentModel?.modelo || '',
-    });
-  }, [modelOptions, selectedBrand, selectedModelId]);
-
   const handleSelectDepartment = (event) => {
     const id = event.target.value;
-    const selected = departmentOptions.find((item) => String(item.id) === String(id));
+    const selected = departments.find((item) => String(item.id) === String(id));
     setSelectedDepartmentId(id);
     setDepartmentDraft(selected?.nombre || '');
   };
 
+  const refreshCatalog = async () => {
+    await onCatalogChange?.();
+  };
+
+  const handleCreateDepartment = async () => {
+    const nombre = newDepartment.trim();
+    if (!nombre) {
+      setError('Escribe el nombre del área.');
+      return;
+    }
+
+    try {
+      await api.post('/api/devices/catalogs/departments', { nombre });
+      setNewDepartment('');
+      setError('');
+      setSuccess('Área creada correctamente.');
+      await refreshCatalog();
+    } catch (err) {
+      setSuccess('');
+      setError(err?.response?.data?.message || 'No se pudo crear el área.');
+    }
+  };
+
   const handleSaveDepartment = async () => {
     const nombre = departmentDraft.trim();
-    const selected = departmentOptions.find((item) => String(item.id) === String(selectedDepartmentId));
-
-    if (!selected || !selectedDepartmentId || !nombre) {
-      setError('Selecciona un área antes de guardar.');
-      setSuccess('');
+    if (!selectedDepartmentId || !nombre) {
+      setError('Selecciona un área y escribe su nombre.');
       return;
     }
 
@@ -65,30 +81,28 @@ const CatalogManagerModal = ({ departments = [], models = [], onClose, onCatalog
       await api.put(`/api/devices/catalogs/departments/${selectedDepartmentId}`, { nombre });
       setError('');
       setSuccess('Área actualizada correctamente.');
-      if (onCatalogChange) onCatalogChange();
+      await refreshCatalog();
     } catch (err) {
       setSuccess('');
       setError(err?.response?.data?.message || 'No se pudo actualizar el área.');
     }
   };
 
-  const handleCreateDepartment = async () => {
-    const nombre = newDepartment.trim();
-    if (!nombre) {
-      setError('Escribe el nombre del área.');
-      setSuccess('');
-      return;
-    }
+  const handleDeleteDepartment = async () => {
+    const selected = departments.find((item) => String(item.id) === String(selectedDepartmentId));
+    if (!selected || !window.confirm(`Eliminar el área "${selected.nombre}"? Esta acción no se puede deshacer.`)) return;
 
     try {
-      await api.post('/api/devices/catalogs/departments', { nombre });
+      await api.delete(`/api/devices/catalogs/departments/${selected.id}`);
+      const nextDepartment = departments.find((item) => String(item.id) !== String(selected.id));
+      setSelectedDepartmentId(nextDepartment ? String(nextDepartment.id) : '');
+      setDepartmentDraft(nextDepartment?.nombre || '');
       setError('');
-      setSuccess('Área agregada correctamente.');
-      setNewDepartment('');
-      if (onCatalogChange) onCatalogChange();
+      setSuccess('Área eliminada correctamente.');
+      await refreshCatalog();
     } catch (err) {
       setSuccess('');
-      setError(err?.response?.data?.message || 'No se pudo guardar el área.');
+      setError(err?.response?.data?.message || 'No se pudo eliminar el área.');
     }
   };
 
@@ -96,20 +110,84 @@ const CatalogManagerModal = ({ departments = [], models = [], onClose, onCatalog
     const marca = newBrand.trim();
     if (!marca) {
       setError('Escribe el nombre de la marca.');
-      setSuccess('');
       return;
     }
 
     try {
       await api.post('/api/devices/catalogs/brands', { marca });
-      setError('');
-      setSuccess('Marca agregada correctamente.');
       setNewBrand('');
       setSelectedBrand(marca);
-      if (onCatalogChange) onCatalogChange();
+      setBrandDraft(marca);
+      setNewModel((current) => ({ ...current, marca }));
+      setError('');
+      setSuccess('Marca creada correctamente.');
+      await refreshCatalog();
     } catch (err) {
       setSuccess('');
-      setError(err?.response?.data?.message || 'No se pudo guardar la marca.');
+      setError(err?.response?.data?.message || 'No se pudo crear la marca.');
+    }
+  };
+
+  const handleSaveBrand = async () => {
+    const currentBrand = selectedBrand.trim();
+    const nextBrand = brandDraft.trim();
+    if (!currentBrand || !nextBrand) {
+      setError('Selecciona una marca y escribe su nombre.');
+      return;
+    }
+
+    try {
+      await api.put(`/api/devices/catalogs/brands/${encodeURIComponent(currentBrand)}`, { marca: nextBrand });
+      setSelectedBrand(nextBrand);
+      setBrandDraft(nextBrand);
+      setNewModel((current) => ({ ...current, marca: nextBrand }));
+      setError('');
+      setSuccess('Marca actualizada correctamente.');
+      await refreshCatalog();
+    } catch (err) {
+      setSuccess('');
+      setError(err?.response?.data?.message || 'No se pudo actualizar la marca.');
+    }
+  };
+
+  const handleDeleteBrand = async () => {
+    const brand = selectedBrand.trim();
+    if (!brand || !window.confirm(`Eliminar la marca "${brand}" y todos sus modelos? Esta acción no se puede deshacer.`)) return;
+
+    try {
+      await api.delete(`/api/devices/catalogs/brands/${encodeURIComponent(brand)}`);
+      const nextBrand = brandOptions.find((item) => item !== brand) || '';
+      setSelectedBrand(nextBrand);
+      setBrandDraft(nextBrand);
+      setSelectedModelId('');
+      setNewModel((current) => ({ ...current, marca: nextBrand }));
+      setError('');
+      setSuccess('Marca eliminada correctamente.');
+      await refreshCatalog();
+    } catch (err) {
+      setSuccess('');
+      setError(err?.response?.data?.message || 'No se pudo eliminar la marca.');
+    }
+  };
+
+  const handleCreateModel = async () => {
+    const marca = newModel.marca.trim();
+    const modelo = newModel.modelo.trim();
+    if (!marca || !modelo) {
+      setError('Selecciona una marca y escribe el modelo.');
+      return;
+    }
+
+    try {
+      await api.post('/api/devices/catalogs/models', { marca, modelo });
+      setNewModel((current) => ({ ...current, modelo: '' }));
+      setSelectedBrand(marca);
+      setError('');
+      setSuccess('Modelo creado correctamente.');
+      await refreshCatalog();
+    } catch (err) {
+      setSuccess('');
+      setError(err?.response?.data?.message || 'No se pudo crear el modelo.');
     }
   };
 
@@ -117,196 +195,192 @@ const CatalogManagerModal = ({ departments = [], models = [], onClose, onCatalog
     const id = event.target.value;
     const selected = models.find((item) => String(item.id) === String(id));
     setSelectedModelId(id);
-    setModelDraft({
-      marca: selected?.marca || selectedBrand || '',
-      modelo: selected?.modelo || '',
-    });
+    setTargetModelBrand('');
+    setModelDraft({ marca: selected?.marca || selectedBrand, modelo: selected?.modelo || '' });
   };
 
   const handleSaveModel = async () => {
-    const marca = String(modelDraft.marca || selectedBrand || '').trim();
-    const modelo = String(modelDraft.modelo || '').trim();
     const selected = models.find((item) => String(item.id) === String(selectedModelId));
-
-    if (!selected || !selectedModelId || !marca || !modelo) {
-      setError('Selecciona un modelo antes de guardar.');
-      setSuccess('');
+    const marca = (targetModelBrand || selectedBrand).trim();
+    const modelo = modelDraft.modelo.trim();
+    if (!selected || !marca || !modelo) {
+      setError('Selecciona un modelo y escribe sus datos.');
       return;
     }
 
     try {
-      await api.put(`/api/devices/catalogs/models/${selectedModelId}`, { marca, modelo });
+      await api.put(`/api/devices/catalogs/models/${selected.id}`, { marca, modelo });
       setError('');
       setSuccess('Modelo actualizado correctamente.');
-      if (onCatalogChange) onCatalogChange();
+      await refreshCatalog();
     } catch (err) {
       setSuccess('');
       setError(err?.response?.data?.message || 'No se pudo actualizar el modelo.');
     }
   };
 
-  const handleCreateModel = async () => {
-    const marca = String(newModel.marca || selectedBrand || '').trim();
-    const modelo = String(newModel.modelo || '').trim();
-
-    if (!marca || !modelo) {
-      setError('Selecciona una marca e ingresa el modelo.');
-      setSuccess('');
-      return;
-    }
+  const handleDeleteModel = async () => {
+    const selected = models.find((item) => String(item.id) === String(selectedModelId));
+    if (!selected || !window.confirm(`Eliminar el modelo "${selected.modelo}"? Esta acción no se puede deshacer.`)) return;
 
     try {
-      await api.post('/api/devices/catalogs/models', { marca, modelo });
+      await api.delete(`/api/devices/catalogs/models/${selected.id}`);
+      setSelectedModelId('');
+      setTargetModelBrand('');
+      setModelDraft({ marca: selectedBrand, modelo: '' });
       setError('');
-      setSuccess('Modelo agregado correctamente.');
-      setNewModel({ marca: '', modelo: '' });
-      if (onCatalogChange) onCatalogChange();
+      setSuccess('Modelo eliminado correctamente.');
+      await refreshCatalog();
     } catch (err) {
       setSuccess('');
-      setError(err?.response?.data?.message || 'No se pudo guardar el modelo.');
+      setError(err?.response?.data?.message || 'No se pudo eliminar el modelo.');
     }
   };
 
   const renderDepartments = () => (
-    <div className="catalog-manager-list compact-list">
-      <div className="catalog-panel-group">
-        <div className="catalog-panel catalog-panel-create">
-          <div className="catalog-panel-header">
-            <span className="catalog-panel-badge">Agregar</span>
-            <strong>Nueva área</strong>
-          </div>
-          <div className="catalog-mini-form">
-            <input
-              type="text"
-              value={newDepartment}
-              onChange={(event) => setNewDepartment(event.target.value)}
-              placeholder="Escribe el nombre del área"
-            />
-            <button type="button" className="btn-cfe" onClick={handleCreateDepartment}>Agregar</button>
-          </div>
+    <div className="catalog-workspace">
+      <section className="catalog-section">
+        <h3>Nueva área</h3>
+        <div className="catalog-form-row">
+          <label className="catalog-field">
+            Nombre del área
+            <input value={newDepartment} onChange={(event) => setNewDepartment(event.target.value)} placeholder="Ej. Operación Poniente" />
+          </label>
+          <button type="button" className="btn-cfe" onClick={handleCreateDepartment}>Crear área</button>
         </div>
+      </section>
 
-        <div className="catalog-panel catalog-panel-update">
-          <div className="catalog-panel-header">
-            <span className="catalog-panel-badge">Actualizar</span>
-            <strong>Área existente</strong>
-          </div>
-
-          <div className="catalog-selector-block">
-            <label>Área a modificar</label>
+      <section className="catalog-section">
+        <h3>Editar o eliminar área</h3>
+        <div className="catalog-form-grid">
+          <label className="catalog-field">
+            Área
             <select value={selectedDepartmentId} onChange={handleSelectDepartment}>
-              {departmentOptions.map((department) => (
-                <option key={department.id} value={department.id}>{department.nombre}</option>
-              ))}
+              <option value="">Selecciona un área</option>
+              {departments.map((department) => <option key={department.id} value={department.id}>{department.nombre}</option>)}
             </select>
-          </div>
-
-          {selectedDepartmentId && (
-            <div className="catalog-editor-card">
-              <label>
-                Nombre del área
-                <input
-                  type="text"
-                  value={departmentDraft}
-                  onChange={(event) => setDepartmentDraft(event.target.value)}
-                />
-              </label>
-              <button type="button" className="btn-cfe" onClick={handleSaveDepartment}>Guardar área</button>
-            </div>
-          )}
+          </label>
+          <label className="catalog-field">
+            Nombre del área
+            <input value={departmentDraft} onChange={(event) => setDepartmentDraft(event.target.value)} disabled={!selectedDepartmentId} />
+          </label>
         </div>
-      </div>
+        <div className="catalog-action-row">
+          <button type="button" className="catalog-delete-button" onClick={handleDeleteDepartment} disabled={!selectedDepartmentId}>Eliminar área</button>
+          <button type="button" className="btn-cfe" onClick={handleSaveDepartment} disabled={!selectedDepartmentId}>Guardar cambios</button>
+        </div>
+      </section>
+    </div>
+  );
+
+  const renderBrands = () => (
+    <div className="catalog-workspace">
+      <section className="catalog-section">
+        <h3>Nueva marca</h3>
+        <div className="catalog-form-row">
+          <label className="catalog-field">
+            Nombre de la marca
+            <input value={newBrand} onChange={(event) => setNewBrand(event.target.value)} placeholder="Ej. Samsung" />
+          </label>
+          <button type="button" className="btn-cfe" onClick={handleCreateBrand}>Crear marca</button>
+        </div>
+      </section>
+
+      <section className="catalog-section">
+        <h3>Editar o eliminar marca</h3>
+        <div className="catalog-form-grid">
+          <label className="catalog-field">
+            Marca
+            <select value={selectedBrand} onChange={(event) => {
+              setSelectedBrand(event.target.value);
+              setBrandDraft(event.target.value);
+            }}>
+              <option value="">Selecciona una marca</option>
+              {brandOptions.map((brand) => <option key={brand} value={brand}>{brand}</option>)}
+            </select>
+          </label>
+          <label className="catalog-field">
+            Nuevo nombre
+            <input value={brandDraft} onChange={(event) => setBrandDraft(event.target.value)} disabled={!selectedBrand} />
+          </label>
+        </div>
+        <div className="catalog-action-row">
+          <button type="button" className="catalog-delete-button" onClick={handleDeleteBrand} disabled={!selectedBrand}>Eliminar marca</button>
+          <button type="button" className="btn-cfe" onClick={handleSaveBrand} disabled={!selectedBrand}>Guardar cambios</button>
+        </div>
+      </section>
     </div>
   );
 
   const renderModels = () => (
-    <div className="catalog-manager-list compact-list">
-      <div className="catalog-panel-group">
-        <div className="catalog-panel catalog-panel-create">
-          <div className="catalog-panel-header">
-            <span className="catalog-panel-badge">Agregar</span>
-            <strong>Nueva marca</strong>
-          </div>
-          <div className="catalog-mini-form">
-            <input
-              type="text"
-              value={newBrand}
-              onChange={(event) => setNewBrand(event.target.value)}
-              placeholder="Escribe la marca"
-            />
-            <button type="button" className="btn-cfe" onClick={handleCreateBrand}>Agregar</button>
-          </div>
-
-          <div className="catalog-mini-form">
-            <input
-              type="text"
-              value={newModel.modelo}
-              onChange={(event) => setNewModel((current) => ({ ...current, modelo: event.target.value }))}
-              placeholder="Escribe el modelo"
-            />
-            <button type="button" className="btn-cfe" onClick={handleCreateModel}>Agregar</button>
-          </div>
+    <div className="catalog-workspace">
+      <section className="catalog-section">
+        <h3>Nuevo modelo</h3>
+        <div className="catalog-form-grid">
+          <label className="catalog-field">
+            Marca
+            <select value={newModel.marca} onChange={(event) => setNewModel((current) => ({ ...current, marca: event.target.value }))}>
+              <option value="">Selecciona una marca</option>
+              {brandOptions.map((brand) => <option key={brand} value={brand}>{brand}</option>)}
+            </select>
+          </label>
+          <label className="catalog-field">
+            Nombre del modelo
+            <input value={newModel.modelo} onChange={(event) => setNewModel((current) => ({ ...current, modelo: event.target.value }))} placeholder="Ej. Galaxy A54" />
+          </label>
         </div>
-
-        <div className="catalog-panel catalog-panel-update">
-          <div className="catalog-panel-header">
-            <span className="catalog-panel-badge">Actualizar</span>
-            <strong>Marca y modelo existentes</strong>
-          </div>
-
-          <div className="catalog-selector-block two-column">
-            <label>
-              Marca
-              <select value={selectedBrand} onChange={(event) => {
-                const nextBrand = event.target.value;
-                setSelectedBrand(nextBrand);
-                setSelectedModelId('');
-                setModelDraft({ marca: nextBrand, modelo: '' });
-              }}>
-                {brandOptions.map((brand) => (
-                  <option key={brand} value={brand}>{brand}</option>
-                ))}
-              </select>
-            </label>
-
-            <label>
-              Modelo a modificar
-              <select value={selectedModelId} onChange={handleSelectModel}>
-                <option value="">Selecciona un modelo</option>
-                {modelOptions.map((item) => (
-                  <option key={item.id} value={item.id}>{item.modelo}</option>
-                ))}
-              </select>
-            </label>
-          </div>
-
-          {selectedModelId && (
-            <div className="catalog-editor-card">
-              <label>
-                Marca
-                <select value={modelDraft.marca} onChange={(event) => setModelDraft((current) => ({ ...current, marca: event.target.value }))}>
-                  {brandOptions.map((brand) => (
-                    <option key={brand} value={brand}>{brand}</option>
-                  ))}
-                </select>
-              </label>
-
-              <label>
-                Modelo
-                <input
-                  type="text"
-                  value={modelDraft.modelo}
-                  onChange={(event) => setModelDraft((current) => ({ ...current, modelo: event.target.value }))}
-                />
-              </label>
-
-              <button type="button" className="btn-cfe" onClick={handleSaveModel}>Guardar modelo</button>
-            </div>
-          )}
+        <div className="catalog-action-row">
+          <button type="button" className="btn-cfe" onClick={handleCreateModel} disabled={!newModel.marca}>Crear modelo</button>
         </div>
-      </div>
+      </section>
+
+      <section className="catalog-section">
+        <h3>Editar o eliminar modelo</h3>
+        <div className="catalog-form-grid">
+          <label className="catalog-field">
+            Marca del modelo
+            <select value={selectedBrand} onChange={(event) => {
+              setSelectedBrand(event.target.value);
+              setSelectedModelId('');
+              setModelDraft({ marca: event.target.value, modelo: '' });
+            }}>
+              <option value="">Selecciona una marca</option>
+              {brandOptions.map((brand) => <option key={brand} value={brand}>{brand}</option>)}
+            </select>
+          </label>
+          <label className="catalog-field">
+            Modelo
+            <select value={selectedModelId} onChange={handleSelectModel} disabled={!selectedBrand}>
+              <option value="">Selecciona un modelo</option>
+              {modelOptions.map((model) => <option key={model.id} value={model.id}>{model.modelo}</option>)}
+            </select>
+          </label>
+          <label className="catalog-field">
+            Cambiar a marca
+            <select value={targetModelBrand} onChange={(event) => setTargetModelBrand(event.target.value)} disabled={!selectedModelId}>
+              <option value="">Mantener marca actual</option>
+              {brandOptions.map((brand) => <option key={brand} value={brand}>{brand}</option>)}
+            </select>
+          </label>
+          <label className="catalog-field">
+            Nombre del modelo
+            <input value={modelDraft.modelo} onChange={(event) => setModelDraft((current) => ({ ...current, modelo: event.target.value }))} disabled={!selectedModelId} />
+          </label>
+        </div>
+        <div className="catalog-action-row">
+          <button type="button" className="catalog-delete-button" onClick={handleDeleteModel} disabled={!selectedModelId}>Eliminar modelo</button>
+          <button type="button" className="btn-cfe" onClick={handleSaveModel} disabled={!selectedModelId}>Guardar cambios</button>
+        </div>
+      </section>
     </div>
   );
+
+  const tabs = [
+    { id: 'departments', label: 'Áreas', content: renderDepartments },
+    { id: 'brands', label: 'Marcas', content: renderBrands },
+    { id: 'models', label: 'Modelos', content: renderModels },
+  ];
+  const activeContent = tabs.find((tab) => tab.id === activeTab)?.content || renderDepartments;
 
   return (
     <div className="manager-modal-backdrop" role="presentation">
@@ -314,33 +388,31 @@ const CatalogManagerModal = ({ departments = [], models = [], onClose, onCatalog
         <div className="manager-modal-header">
           <div>
             <span className="section-eyebrow">Catálogos</span>
-            <h2 id="catalog-modal-title">Áreas y modelos</h2>
+            <h2 id="catalog-modal-title">Áreas, marcas y modelos</h2>
           </div>
           <button className="modal-close" type="button" onClick={onClose} aria-label="Cerrar gestión de catálogos">×</button>
         </div>
 
         <div className="section-switcher catalog-tabs" role="tablist" aria-label="Catálogos disponibles">
-          <button
-            type="button"
-            className={`section-tab ${activeTab === 'departments' ? 'active' : ''}`}
-            role="tab"
-            aria-selected={activeTab === 'departments'}
-            onClick={() => setActiveTab('departments')}
-          >
-            Áreas
-          </button>
-          <button
-            type="button"
-            className={`section-tab ${activeTab === 'models' ? 'active' : ''}`}
-            role="tab"
-            aria-selected={activeTab === 'models'}
-            onClick={() => setActiveTab('models')}
-          >
-            Marcas/Modelos
-          </button>
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              className={`section-tab ${activeTab === tab.id ? 'active' : ''}`}
+              role="tab"
+              aria-selected={activeTab === tab.id}
+              onClick={() => {
+                setActiveTab(tab.id);
+                setError('');
+                setSuccess('');
+              }}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
 
-        {activeTab === 'departments' ? renderDepartments() : renderModels()}
+        {activeContent()}
 
         {error && <p className="login-error" role="alert">{error}</p>}
         {success && <p className="login-success" role="status">{success}</p>}

@@ -148,7 +148,7 @@ const DeviceMap = ({ devices, selectedDevice, onSelectDevice }) => {
       const popupContent = `
         <div class="device-popup">
           <div class="device-popup-title">${device.name || device.inventoryNumber || device.id}</div>
-          <div class="device-popup-row"><strong>No. Inventario:</strong> ${device.inventoryNumber || device.id || 'Sin inventario'}</div>
+          <div class="device-popup-row"><strong>No. Inventario:</strong> ${device.inventoryNumber || 'Sin inventario'}</div>
           <div class="device-popup-row"><strong>IMEI:</strong> ${device.imei || 'Sin IMEI'}</div>
           <div class="device-popup-row"><strong>Área:</strong> ${device.location || 'Sin área'}</div>
           <div class="device-popup-row"><strong>Trabajador:</strong> ${device.workerName || 'Sin asignar'}</div>

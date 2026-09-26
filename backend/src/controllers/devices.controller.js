@@ -1,4 +1,5 @@
 const { supabase } = require('../config/supabase');
+const bcrypt = require('bcryptjs');
 
 const normalizeStatus = (status) => {
   if (!status) return 'En línea';
@@ -42,11 +43,11 @@ const pickFirstValue = (row, keys) => {
 };
 
 const normalizeInventory = (value) => {
-  if (value === null || value === undefined) return 'N/A';
+  if (value === null || value === undefined) return '';
   const text = String(value).trim();
-  if (!text) return 'N/A';
+  if (!text) return '';
   const withoutPrefix = text.replace(/^kiosco\s*/i, '').trim();
-  return withoutPrefix || 'N/A';
+  return withoutPrefix;
 };
 
 const normalizeImei = (value) => {
@@ -75,13 +76,14 @@ const resolveModelData = (row, modelosMap) => {
 const formatDeviceRow = (row, departamentosMap, modelosMap) => {
   const inventoryValue = pickFirstValue(row, ['asset_tag', 'inventario', 'numero_inventario', 'n_inventario', 'inventory_number', 'serial', 'no_inventario', 'num_inventario', 'codigo']);
   const imeiValue = pickFirstValue(row, ['imei', 'imei_number', 'numero_imei', 'imei_tel', 'telefono_imei', 'serial_imei', 'celular_imei', 'id']);
-  const inventoryNumber = normalizeInventory(inventoryValue ?? row.id ?? 'N/A');
-  const imei = normalizeImei(imeiValue ?? 'N/A');
+  const inventoryNumber = normalizeInventory(inventoryValue ?? row.asset_tag);
+  const imei = normalizeImei(imeiValue ?? row.imei ?? 'N/A');
   const modelInfo = resolveModelData(row, modelosMap);
+  const realIdentifier = row.imei ?? row.asset_tag ?? row.id ?? null;
 
   return {
-    databaseId: row.id ?? null,
-    id: imei !== 'N/A' ? imei : (row.id ?? inventoryNumber),
+    databaseId: realIdentifier,
+    id: imei !== 'N/A' ? imei : (row.imei ?? row.asset_tag ?? row.id ?? inventoryNumber),
     name: inventoryNumber,
     displayName: inventoryNumber || 'N/A',
     imei,
@@ -96,8 +98,8 @@ const formatDeviceRow = (row, departamentosMap, modelosMap) => {
     modelId: modelInfo.modelId,
     workerName: row.worker_name ?? 'Sin asignar',
     workerRpe: row.worker_rpe ?? 'N/A',
-    role: row.worker_position ?? row.role ?? row.puesto ?? row.cargo ?? row.worker_role ?? row.job_title ?? 'Operador',
-    puesto: row.worker_position ?? row.puesto ?? row.role ?? row.cargo ?? row.worker_role ?? row.job_title ?? 'Operador',
+    role: row.worker_position ?? 'Operador',
+    puesto: row.worker_position ?? 'Operador',
     lastUpdate: row.updated_at ?? 'Sin fecha',
   };
 };
@@ -110,7 +112,11 @@ const getDevices = async (_req, res) => {
   }
 
   try {
-    const [{ data: kiosks, error: kiosksError }, { data: departamentos = [] }, { data: modelos = [] }] = await Promise.all([
+    const [
+      { data: kiosks, error: kiosksError },
+      { data: departamentos, error: departmentsError },
+      { data: modelos, error: modelsError },
+    ] = await Promise.all([
       supabase.from('kioscos').select('*'),
       supabase.from('cat_departamentos').select('id, nombre'),
       supabase.from('cat_marcas_modelos').select('id, marca, modelo'),
@@ -120,15 +126,24 @@ const getDevices = async (_req, res) => {
       return res.status(500).json({ message: 'No fue posible consultar los kioscos en Supabase.', details: kiosksError.message });
     }
 
+    if (departmentsError || modelsError) {
+      const catalogError = departmentsError || modelsError;
+      return res.status(500).json({ message: 'No fue posible consultar los catálogos en Supabase.', details: catalogError.message });
+    }
+
+    const safeKiosks = Array.isArray(kiosks) ? kiosks : [];
+    const safeDepartamentos = Array.isArray(departamentos) ? departamentos : [];
+    const safeModelos = Array.isArray(modelos) ? modelos : [];
+
     const departamentosMap = Object.fromEntries(
-      departamentos.map((item) => [item.id, item.nombre]),
+      safeDepartamentos.map((item) => [item.id, item.nombre]),
     );
 
     const modelosMap = Object.fromEntries(
-      modelos.map((item) => [item.id, item]),
+      safeModelos.map((item) => [item.id, item]),
     );
 
-    const devices = (kiosks || []).map((row) => formatDeviceRow(row, departamentosMap, modelosMap));
+    const devices = safeKiosks.map((row) => formatDeviceRow(row, departamentosMap, modelosMap));
     return res.json({ devices });
   } catch (error) {
     console.error('Error consultando dispositivos de Supabase:', error.message);
@@ -142,14 +157,25 @@ const getDeviceCatalogs = async (_req, res) => {
   }
 
   try {
-    const [{ data: departamentos = [] }, { data: modelos = [] }] = await Promise.all([
+    const [
+      { data: departamentos, error: departmentsError },
+      { data: modelos, error: modelsError },
+    ] = await Promise.all([
       supabase.from('cat_departamentos').select('id, nombre').order('id'),
       supabase.from('cat_marcas_modelos').select('id, marca, modelo').order('marca'),
     ]);
 
+    if (departmentsError || modelsError) {
+      const catalogError = departmentsError || modelsError;
+      return res.status(500).json({ message: 'No se pudieron consultar los catálogos.', details: catalogError.message });
+    }
+
+    const safeDepartamentos = Array.isArray(departamentos) ? departamentos : [];
+    const safeModelos = Array.isArray(modelos) ? modelos : [];
+
     return res.json({
-      departments: departamentos.map((item) => ({ id: item.id, nombre: item.nombre })),
-      models: modelos.map((item) => ({
+      departments: safeDepartamentos.map((item) => ({ id: item.id, nombre: item.nombre })),
+      models: safeModelos.map((item) => ({
         id: item.id,
         marca: item.marca ?? '',
         modelo: item.modelo ?? '',
@@ -233,6 +259,38 @@ const updateDepartment = async (req, res) => {
   }
 };
 
+const deleteDepartment = async (req, res) => {
+  if (!supabase) {
+    return res.status(503).json({ message: 'Sin conexión a Supabase.' });
+  }
+
+  const id = req.params.id;
+  if (!id) {
+    return res.status(400).json({ message: 'Falta el identificador del área.' });
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('cat_departamentos')
+      .delete()
+      .eq('id', id)
+      .select('id');
+
+    if (error) {
+      return res.status(500).json({ message: 'No se pudo eliminar el área.', details: error.message });
+    }
+
+    if (!data || data.length === 0) {
+      return res.status(404).json({ message: 'No se encontró el área.' });
+    }
+
+    return res.json({ message: 'Área eliminada correctamente.' });
+  } catch (error) {
+    console.error('Error eliminando departamento en Supabase:', error.message);
+    return res.status(500).json({ message: 'Error al eliminar el área.' });
+  }
+};
+
 const normalizeCatalogText = (value) => String(value ?? '').replace(/\s+/g, ' ').trim();
 
 const createBrand = async (req, res) => {
@@ -269,6 +327,83 @@ const createBrand = async (req, res) => {
   } catch (error) {
     console.error('Error creando marca en Supabase:', error.message);
     return res.status(500).json({ message: 'Error al guardar la marca.' });
+  }
+};
+
+const updateBrand = async (req, res) => {
+  if (!supabase) {
+    return res.status(503).json({ message: 'Sin conexión a Supabase.' });
+  }
+
+  const currentBrand = normalizeCatalogText(decodeURIComponent(req.params.brand || ''));
+  const nextBrand = normalizeCatalogText(req.body?.marca);
+
+  if (!currentBrand || !nextBrand) {
+    return res.status(400).json({ message: 'La marca actual y la nueva marca son obligatorias.' });
+  }
+
+  try {
+    const { data: existing } = await supabase
+      .from('cat_marcas_modelos')
+      .select('id, marca, modelo')
+      .neq('marca', currentBrand)
+      .ilike('marca', nextBrand)
+      .limit(1);
+
+    if (existing && existing.length > 0) {
+      return res.status(409).json({ message: 'Ya existe otra marca con ese nombre.' });
+    }
+
+    const { data, error } = await supabase
+      .from('cat_marcas_modelos')
+      .update({ marca: nextBrand })
+      .ilike('marca', currentBrand)
+      .select();
+
+    if (error) {
+      return res.status(500).json({ message: 'No se pudo actualizar la marca.', details: error.message });
+    }
+
+    if (!data || data.length === 0) {
+      return res.status(404).json({ message: 'No se encontró la marca.' });
+    }
+
+    return res.json({ brand: nextBrand, updatedRows: data.length });
+  } catch (error) {
+    console.error('Error actualizando marca en Supabase:', error.message);
+    return res.status(500).json({ message: 'Error al editar la marca.' });
+  }
+};
+
+const deleteBrand = async (req, res) => {
+  if (!supabase) {
+    return res.status(503).json({ message: 'Sin conexión a Supabase.' });
+  }
+
+  const currentBrand = normalizeCatalogText(decodeURIComponent(req.params.brand || ''));
+  if (!currentBrand) {
+    return res.status(400).json({ message: 'La marca es obligatoria.' });
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('cat_marcas_modelos')
+      .delete()
+      .ilike('marca', currentBrand)
+      .select('id');
+
+    if (error) {
+      return res.status(500).json({ message: 'No se pudo eliminar la marca.', details: error.message });
+    }
+
+    if (!data || data.length === 0) {
+      return res.status(404).json({ message: 'No se encontró la marca.' });
+    }
+
+    return res.json({ message: 'Marca eliminada correctamente.' });
+  } catch (error) {
+    console.error('Error eliminando marca en Supabase:', error.message);
+    return res.status(500).json({ message: 'Error al eliminar la marca.' });
   }
 };
 
@@ -384,6 +519,38 @@ const updateModel = async (req, res) => {
   }
 };
 
+const deleteModel = async (req, res) => {
+  if (!supabase) {
+    return res.status(503).json({ message: 'Sin conexión a Supabase.' });
+  }
+
+  const id = req.params.id;
+  if (!id) {
+    return res.status(400).json({ message: 'Falta el identificador del modelo.' });
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('cat_marcas_modelos')
+      .delete()
+      .eq('id', id)
+      .select('id');
+
+    if (error) {
+      return res.status(500).json({ message: 'No se pudo eliminar el modelo.', details: error.message });
+    }
+
+    if (!data || data.length === 0) {
+      return res.status(404).json({ message: 'No se encontró el modelo.' });
+    }
+
+    return res.json({ message: 'Modelo eliminado correctamente.' });
+  } catch (error) {
+    console.error('Error eliminando modelo en Supabase:', error.message);
+    return res.status(500).json({ message: 'Error al eliminar el modelo.' });
+  }
+};
+
 const resolveDepartmentId = (name, departments = []) => {
   if (name === null || name === undefined || name === '') return null;
   const match = departments.find((item) => String(item.nombre).trim().toLowerCase() === String(name).trim().toLowerCase());
@@ -411,10 +578,21 @@ const updateDevice = async (req, res) => {
   }
 
   try {
-    const [{ data: departments = [] }, { data: models = [] }] = await Promise.all([
+    const [
+      { data: departments, error: departmentsError },
+      { data: models, error: modelsError },
+    ] = await Promise.all([
       supabase.from('cat_departamentos').select('id, nombre'),
       supabase.from('cat_marcas_modelos').select('id, marca, modelo'),
     ]);
+
+    if (departmentsError || modelsError) {
+      const catalogError = departmentsError || modelsError;
+      return res.status(500).json({ message: 'No se pudieron validar los catálogos.', details: catalogError.message });
+    }
+
+    const safeDepartments = Array.isArray(departments) ? departments : [];
+    const safeModels = Array.isArray(models) ? models : [];
 
     const payload = req.body || {};
     const updates = {};
@@ -422,30 +600,90 @@ const updateDevice = async (req, res) => {
     if (payload.workerName !== undefined) updates.worker_name = String(payload.workerName).trim();
     if (payload.workerRpe !== undefined) updates.worker_rpe = String(payload.workerRpe).trim();
     if (payload.role !== undefined) updates.worker_position = String(payload.role).trim();
-    if (payload.puesto !== undefined) updates.worker_position = String(payload.puesto).trim();
+    if (payload.puesto !== undefined && payload.role === undefined) updates.worker_position = String(payload.puesto).trim();
     if (payload.phoneNumber !== undefined) updates.phone_number = String(payload.phoneNumber).trim();
-    if (payload.inventoryNumber !== undefined && String(payload.inventoryNumber).trim() !== '') updates.asset_tag = String(payload.inventoryNumber).trim();
+    if (payload.imei !== undefined && String(payload.imei).trim() !== '') updates.imei = String(payload.imei).trim();
+    if (payload.inventoryNumber !== undefined) {
+      const inventoryNumber = String(payload.inventoryNumber).trim();
+      updates.asset_tag = inventoryNumber || null;
+    }
+    if (payload.adminPassword !== undefined) {
+      const adminPassword = String(payload.adminPassword);
+      if (adminPassword.length < 6) {
+        return res.status(400).json({ message: 'La contraseña del modo kiosco debe tener al menos 6 caracteres.' });
+      }
+      updates.admin_password_hash = await bcrypt.hash(adminPassword, 12);
+    }
 
     if (payload.departmentId !== undefined || payload.departamento_id !== undefined || payload.location !== undefined) {
-      const nextDepartmentId = payload.departmentId ?? payload.departamento_id ?? resolveDepartmentId(payload.location, departments);
+      const nextDepartmentId = payload.departmentId ?? payload.departamento_id ?? resolveDepartmentId(payload.location, safeDepartments);
       if (nextDepartmentId !== null && nextDepartmentId !== undefined) updates.departamento_id = nextDepartmentId;
     }
 
     if (payload.modelId !== undefined || payload.modelo_id !== undefined || payload.brand !== undefined || payload.model !== undefined) {
-      const nextModelId = payload.modelId ?? payload.modelo_id ?? resolveModelId(payload.brand, payload.model, models);
+      const nextModelId = payload.modelId ?? payload.modelo_id ?? resolveModelId(payload.brand, payload.model, safeModels);
       if (nextModelId !== null && nextModelId !== undefined) updates.modelo_id = nextModelId;
-      if (payload.brand !== undefined) updates.marca = String(payload.brand).trim();
-      if (payload.model !== undefined) updates.modelo = String(payload.model).trim();
     }
 
     if (Object.keys(updates).length === 0) {
       return res.status(400).json({ message: 'No se enviaron cambios válidos para actualizar.' });
     }
 
+    const lookupCandidates = Array.from(new Set([
+      deviceId,
+      payload.databaseId,
+      payload.imei,
+      payload.inventoryNumber,
+      payload.id,
+    ].filter((value) => value !== null && value !== undefined && String(value).trim() !== '')))
+      .map((value) => String(value).trim());
+
+    let matchedDevice = null;
+    let matchColumn = null;
+
+    for (const candidate of lookupCandidates) {
+      const imeiMatch = await supabase
+        .from('kioscos')
+        .select('imei, asset_tag')
+        .eq('imei', candidate)
+        .limit(1);
+
+      if (imeiMatch.error) {
+        return res.status(500).json({ message: 'No se pudo localizar el dispositivo para actualizar.', details: imeiMatch.error.message });
+      }
+
+      if (imeiMatch.data?.[0]) {
+        matchedDevice = imeiMatch.data[0];
+        matchColumn = 'imei';
+        break;
+      }
+
+      const inventoryMatch = await supabase
+        .from('kioscos')
+        .select('imei, asset_tag')
+        .eq('asset_tag', candidate)
+        .limit(1);
+
+      if (inventoryMatch.error) {
+        return res.status(500).json({ message: 'No se pudo localizar el dispositivo para actualizar.', details: inventoryMatch.error.message });
+      }
+
+      if (inventoryMatch.data?.[0]) {
+        matchedDevice = inventoryMatch.data[0];
+        matchColumn = 'asset_tag';
+        break;
+      }
+    }
+
+    if (!matchedDevice || !matchColumn) {
+      return res.status(404).json({ message: 'No se encontró el dispositivo a actualizar.' });
+    }
+
+    const recordKey = matchedDevice[matchColumn];
     const { data, error } = await supabase
       .from('kioscos')
       .update(updates)
-      .eq('id', deviceId)
+      .eq(matchColumn, recordKey)
       .select();
 
     if (error) {
@@ -456,7 +694,11 @@ const updateDevice = async (req, res) => {
       return res.status(404).json({ message: 'No se encontró el dispositivo a actualizar.' });
     }
 
-    const refreshed = formatDeviceRow(data[0], Object.fromEntries(departments.map((item) => [item.id, item.nombre])), Object.fromEntries(models.map((item) => [item.id, item])));
+    const refreshed = formatDeviceRow(
+      data[0],
+      Object.fromEntries(safeDepartments.map((item) => [item.id, item.nombre])),
+      Object.fromEntries(safeModels.map((item) => [item.id, item])),
+    );
     return res.json({ device: refreshed });
   } catch (error) {
     console.error('Error actualizando dispositivo en Supabase:', error.message);
@@ -464,4 +706,4 @@ const updateDevice = async (req, res) => {
   }
 };
 
-module.exports = { getDevices, getDeviceCatalogs, createDepartment, updateDepartment, createBrand, createModel, updateModel, updateDevice };
+module.exports = { getDevices, getDeviceCatalogs, createDepartment, updateDepartment, deleteDepartment, createBrand, updateBrand, deleteBrand, createModel, updateModel, deleteModel, updateDevice };

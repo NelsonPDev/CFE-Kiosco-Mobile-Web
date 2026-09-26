@@ -91,7 +91,12 @@ const Dashboard = ({ user, onLogout }) => {
   ) || null;
 
   const openDeviceModal = (device, isEditing = false) => {
-    setDeviceModal({ device: { ...device }, isEditing });
+    setDeviceModal({
+      device: { ...device },
+      isEditing,
+      successMessage: '',
+      errorMessage: '',
+    });
     selectDevice(device);
   };
 
@@ -107,52 +112,82 @@ const Dashboard = ({ user, onLogout }) => {
       const selectedModel = deviceCatalog.models.find((item) => item.marca === deviceModal.device.brand && item.modelo === deviceModal.device.model)
         || deviceCatalog.models.find((item) => item.label === `${deviceModal.device.brand || ''} ${deviceModal.device.model || ''}`.trim());
 
+      const selectedRole = deviceModal.device.role ?? deviceModal.device.puesto ?? '';
+
       const payload = {
-        databaseId: deviceModal.device.databaseId ?? deviceModal.device.id,
-        workerName: deviceModal.device.workerName,
-        workerRpe: deviceModal.device.workerRpe,
-        location: deviceModal.device.location,
-        role: deviceModal.device.role ?? deviceModal.device.puesto ?? 'Operador',
-        departmentId: department?.id ?? deviceModal.device.departmentId ?? null,
-        phoneNumber: deviceModal.device.phoneNumber,
-        brand: deviceModal.device.brand ?? '',
-        model: deviceModal.device.model ?? '',
-        modelId: selectedModel?.id ?? deviceModal.device.modelId ?? null,
-        inventoryNumber: deviceModal.device.inventoryNumber ?? deviceModal.device.id,
+        databaseId: deviceModal.device.databaseId ?? deviceModal.device.imei ?? deviceModal.device.id ?? deviceModal.device.inventoryNumber ?? null,
       };
 
       if (section === 'worker') {
-        delete payload.phoneNumber;
-        delete payload.brand;
-        delete payload.model;
-        delete payload.modelId;
-        delete payload.inventoryNumber;
+        Object.assign(payload, {
+          workerName: deviceModal.device.workerName,
+          workerRpe: deviceModal.device.workerRpe,
+          location: deviceModal.device.location,
+          role: selectedRole,
+          puesto: selectedRole,
+          departmentId: department?.id ?? deviceModal.device.departmentId ?? null,
+        });
       }
 
       if (section === 'device') {
-        delete payload.workerName;
-        delete payload.workerRpe;
-        delete payload.location;
-        delete payload.departmentId;
+        Object.assign(payload, {
+          phoneNumber: deviceModal.device.phoneNumber,
+          brand: deviceModal.device.brand ?? '',
+          model: deviceModal.device.model ?? '',
+          modelId: selectedModel?.id ?? deviceModal.device.modelId ?? null,
+          inventoryNumber: deviceModal.device.inventoryNumber ?? '',
+          imei: deviceModal.device.imei ?? deviceModal.device.id ?? null,
+        });
       }
 
       if (section === 'password') {
-        setDeviceModal((current) => ({ ...current, isEditing: false }));
-        return;
+        const adminPassword = deviceModal.device.adminPassword || '';
+        const confirmAdminPassword = deviceModal.device.confirmAdminPassword || '';
+
+        if (adminPassword.length < 6) {
+          setDeviceModal((current) => ({
+            ...current,
+            errorMessage: 'La contraseña del modo kiosco debe tener al menos 6 caracteres.',
+          }));
+          return;
+        }
+
+        if (adminPassword !== confirmAdminPassword) {
+          setDeviceModal((current) => ({
+            ...current,
+            errorMessage: 'Las contraseñas no coinciden.',
+          }));
+          return;
+        }
+
+        Object.assign(payload, { adminPassword });
       }
 
-      const { data } = await api.put(`/api/devices/${deviceModal.device.databaseId ?? deviceModal.device.id}`, payload);
+      const targetId = deviceModal.device.databaseId ?? deviceModal.device.imei ?? deviceModal.device.id ?? deviceModal.device.inventoryNumber ?? '';
+      const { data } = await api.put(`/api/devices/${targetId}`, payload);
       const updatedDevice = data.device;
 
       setDevices((currentDevices) => currentDevices.map((device) => (
-        String(device.databaseId ?? device.id) === String(updatedDevice.databaseId ?? updatedDevice.id)
+        String(device.databaseId ?? device.id) === String(deviceModal.device.databaseId ?? deviceModal.device.id)
           ? updatedDevice
           : device
       )));
       setSelectedDevice(updatedDevice);
-      setDeviceModal((current) => ({ ...current, device: updatedDevice, isEditing: true }));
+      setDeviceModal((current) => ({
+        ...current,
+        device: updatedDevice,
+        isEditing: false,
+        successMessage: 'Se guardó correctamente en la base de datos.',
+        errorMessage: '',
+      }));
     } catch (error) {
       console.error('No se pudo guardar el dispositivo en la base de datos.', error.response?.data || error.message);
+      setDeviceModal((current) => ({
+        ...current,
+        isEditing: true,
+        errorMessage: 'No se pudo guardar. Verifica la información e inténtalo de nuevo.',
+        successMessage: '',
+      }));
     }
   };
 
@@ -230,7 +265,7 @@ const Dashboard = ({ user, onLogout }) => {
             {selectedVisibleDevice && (
               <div className="map-device-card" role="dialog" aria-live="polite">
                 <button className="map-device-close" type="button" aria-label="Cerrar detalle" onClick={() => setSelectedDevice(null)}>×</button>
-                <div className="map-device-number">{selectedVisibleDevice.inventoryNumber || selectedVisibleDevice.name}</div>
+                <div className="map-device-number">{selectedVisibleDevice.inventoryNumber || 'Sin inventario'}</div>
                 <div className="map-device-meta">
                   <span>{selectedVisibleDevice.id}</span>
                   <span>{selectedVisibleDevice.status}</span>
@@ -250,9 +285,11 @@ const Dashboard = ({ user, onLogout }) => {
           modelOptions={deviceCatalog.models}
           isAdmin={isAdmin}
           isEditing={deviceModal.isEditing}
-          onChange={(device) => setDeviceModal((current) => ({ ...current, device }))}
+          successMessage={deviceModal.successMessage || ''}
+          errorMessage={deviceModal.errorMessage || ''}
+          onChange={(device) => setDeviceModal((current) => ({ ...current, device, errorMessage: '', successMessage: '' }))}
           onClose={() => setDeviceModal(null)}
-          onEdit={() => setDeviceModal((current) => ({ ...current, isEditing: true }))}
+          onEdit={() => setDeviceModal((current) => ({ ...current, isEditing: true, successMessage: '', errorMessage: '' }))}
           onSave={handleSaveDevice}
           onCatalogChange={refreshCatalogs}
         />

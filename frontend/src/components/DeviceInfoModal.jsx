@@ -6,6 +6,8 @@ const DeviceInfoModal = ({
   modelOptions = [],
   isAdmin,
   isEditing,
+  successMessage = '',
+  errorMessage = '',
   onChange,
   onClose,
   onEdit,
@@ -19,7 +21,7 @@ const DeviceInfoModal = ({
   const sectionTabs = [
     { id: 'worker', label: 'Trabajador' },
     { id: 'device', label: 'Teléfono' },
-    { id: 'password', label: 'Contraseña' },
+    { id: 'password', label: 'Modo kiosco' },
   ];
 
   const updateField = (field, value) => {
@@ -31,6 +33,14 @@ const DeviceInfoModal = ({
     }
 
     onChange({ ...device, [field]: value });
+  };
+
+  const handleRoleChange = (nextValue) => {
+    onChange({
+      ...device,
+      role: nextValue,
+      puesto: nextValue,
+    });
   };
 
   const renderActiveSection = () => {
@@ -56,7 +66,11 @@ const DeviceInfoModal = ({
           </label>
           <label>
             Puesto
-            <input type="text" value={device.role || 'Operador'} onChange={(event) => updateField('role', event.target.value)} required />
+            <input
+              type="text"
+              value={device.role ?? device.puesto ?? ''}
+              onChange={(event) => handleRoleChange(event.target.value)}
+            />
           </label>
 
         </div>
@@ -69,7 +83,7 @@ const DeviceInfoModal = ({
           <h3>Editar Teléfono</h3>
           <label>
             No. Inventario
-            <input type="text" value={device.inventoryNumber || device.id || ''} onChange={(event) => updateField('inventoryNumber', event.target.value)} required />
+            <input type="text" value={device.inventoryNumber ?? ''} onChange={(event) => updateField('inventoryNumber', event.target.value)} />
           </label>
           <label>
             IMEI
@@ -104,19 +118,37 @@ const DeviceInfoModal = ({
       );
     }
 
-    return (
-      <div className="edit-section-card">
-        <h3>Editar Contraseña</h3>
-        <label>
-          Nueva contraseña
-          <input type="password" value={device.newPassword || ''} onChange={(event) => updateField('newPassword', event.target.value)} placeholder="Mínimo 6 caracteres" minLength="6" />
-        </label>
-        <label>
-          Confirmar contraseña
-          <input type="password" value={device.confirmPassword || ''} onChange={(event) => updateField('confirmPassword', event.target.value)} placeholder="Repite la contraseña" minLength="6" />
-        </label>
-      </div>
-    );
+    if (selectedTab === 'password') {
+      return (
+        <div className="edit-section-card">
+          <h3>Contraseña de administrador</h3>
+          <label>
+            Nueva contraseña
+            <input
+              type="password"
+              value={device.adminPassword || ''}
+              onChange={(event) => updateField('adminPassword', event.target.value)}
+              autoComplete="new-password"
+              minLength="6"
+              required
+            />
+          </label>
+          <label>
+            Confirmar contraseña
+            <input
+              type="password"
+              value={device.confirmAdminPassword || ''}
+              onChange={(event) => updateField('confirmAdminPassword', event.target.value)}
+              autoComplete="new-password"
+              minLength="6"
+              required
+            />
+          </label>
+        </div>
+      );
+    }
+
+    return null;
   };
 
   return (
@@ -147,6 +179,8 @@ const DeviceInfoModal = ({
               ))}
             </div>
 
+            {errorMessage && <p className="login-error" role="alert">{errorMessage}</p>}
+
             {renderActiveSection()}
 
             <div className="edit-form-actions">
@@ -157,31 +191,36 @@ const DeviceInfoModal = ({
             </div>
           </form>
         ) : (
-          <div className="device-details">
-            <div className="device-details-status">
-              <span className="device-status-dot" aria-hidden="true" />
-              <strong>{device.status}</strong>
-              <small>{device.lastUpdate}</small>
-            </div>
+          <>
+            {successMessage && <p className="login-success" role="status">{successMessage}</p>}
+            {errorMessage && <p className="login-error" role="alert">{errorMessage}</p>}
 
-            <div className="device-detail-grid">
-              <div className="device-detail-column">
-                <div><span>Trabajador asignado</span><strong>{device.workerName}</strong></div>
-                <div><span>RPE</span><strong>{device.workerRpe}</strong></div>
-                <div><span>Área</span><strong>{device.location}</strong></div>
-                <div><span>Puesto</span><strong>{device.role || 'Operador'}</strong></div>
+            <div className="device-details">
+              <div className="device-details-status">
+                <span className="device-status-dot" aria-hidden="true" />
+                <strong>{device.status}</strong>
+                <small>{device.lastUpdate}</small>
               </div>
 
-              <div className="device-detail-column">
-                <div><span>No. Inventario</span><strong>{device.inventoryNumber || device.id || 'Sin inventario'}</strong></div>
-                <div><span>IMEI</span><strong>{device.imei || 'Sin IMEI'}</strong></div>
-                <div><span>Teléfono</span><strong>{device.phoneNumber}</strong></div>
-                <div><span>Marca/Modelo</span><strong>{[device.brand, device.model].filter(Boolean).join(' / ') || 'Sin información'}</strong></div>
-              </div>
-            </div>
+              <div className="device-detail-grid">
+                <div className="device-detail-column">
+                  <div><span>Trabajador asignado</span><strong>{device.workerName}</strong></div>
+                  <div><span>RPE</span><strong>{device.workerRpe}</strong></div>
+                  <div><span>Área</span><strong>{device.location}</strong></div>
+                  <div><span>Puesto</span><strong>{device.role || device.puesto || 'Operador'}</strong></div>
+                </div>
 
-            {isAdmin && <button className="btn-cfe" type="button" onClick={onEdit}>Modificar información</button>}
-          </div>
+                <div className="device-detail-column">
+                  <div><span>No. Inventario</span><strong>{device.inventoryNumber || 'Sin inventario'}</strong></div>
+                  <div><span>IMEI</span><strong>{device.imei || 'Sin IMEI'}</strong></div>
+                  <div><span>Teléfono</span><strong>{device.phoneNumber}</strong></div>
+                  <div><span>Marca/Modelo</span><strong>{[device.brand, device.model].filter(Boolean).join(' / ') || 'Sin información'}</strong></div>
+                </div>
+              </div>
+
+              {isAdmin && <button className="btn-cfe" type="button" onClick={onEdit}>Modificar información</button>}
+            </div>
+          </>
         )}
       </section>
     </div>

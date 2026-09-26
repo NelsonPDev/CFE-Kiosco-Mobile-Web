@@ -61,7 +61,7 @@ const DeviceSidebar = ({
             <span className="device-info">
               <strong>{device.workerRpe || 'N/A'}</strong>
               <small>{device.workerName || 'Sin asignar'}</small>
-              <small>{device.inventoryNumber || device.name} · {device.imei || 'N/A'}</small>
+              <small>{device.inventoryNumber || 'Sin inventario'} · {device.imei || 'N/A'}</small>
               <small>{device.status}</small>
             </span>
           </button>

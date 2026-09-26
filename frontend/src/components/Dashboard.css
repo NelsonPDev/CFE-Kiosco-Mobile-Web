@@ -461,18 +461,6 @@
   background-color: rgba(53, 165, 107, 0.2);
 }
 
-.password-change-button {
-  width: calc(100% - 8px);
-  margin: 0 4px;
-  padding: 9px 10px;
-  border: 0;
-  background: transparent;
-  color: #b9d6c5;
-  cursor: pointer;
-  font-size: 0.78rem;
-  text-decoration: underline;
-}
-
 .manager-admin-button span {
   font-size: 1.2rem;
   line-height: 0.8;
@@ -865,42 +853,6 @@
   box-shadow: 0 0 0 3px var(--cfe-green-soft);
 }
 
-.manager-list {
-  padding-top: 18px;
-  border-top: 1px solid var(--cfe-green-soft);
-}
-
-.manager-list h3 {
-  color: var(--cfe-green-deep);
-  font-size: 0.95rem;
-}
-
-.manager-row {
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  margin-top: 12px;
-  padding: 10px;
-  border-radius: 4px;
-  background-color: var(--cfe-green-soft);
-}
-
-.manager-avatar {
-  display: grid;
-  width: 32px;
-  height: 32px;
-  place-items: center;
-  border-radius: 50%;
-  background-color: var(--cfe-green);
-  color: var(--cfe-white);
-  font-weight: 800;
-}
-
-.manager-row > span:nth-child(2) {
-  display: grid;
-  gap: 3px;
-}
-
 .password-reset-button {
   margin-left: auto;
   padding: 6px 8px;
@@ -917,21 +869,70 @@
   background-color: var(--cfe-white);
 }
 
-.password-target {
-  margin: 0;
-  color: var(--cfe-text-muted);
-  font-size: 0.86rem;
+.manager-directory {
+  padding-top: 18px;
+  border-top: 1px solid var(--cfe-green-soft);
 }
 
-.password-error {
+.manager-directory h3,
+.manager-form h3 {
   margin: 0;
-  color: var(--cfe-red);
+  color: var(--cfe-green-deep);
+  font-size: 1rem;
+}
+
+.manager-list {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 0;
+  border: 0;
+  list-style: none;
+}
+
+.manager-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--cfe-green-soft);
+  border-radius: 6px;
+  background-color: #f9fbfa;
+}
+
+.manager-list li > div:first-child {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.manager-list span,
+.manager-empty-state {
+  color: var(--cfe-text-muted);
   font-size: 0.82rem;
 }
 
-.manager-row small {
-  color: var(--cfe-text-muted);
-  font-size: 0.76rem;
+.manager-list-actions,
+.catalog-editor-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.catalog-delete-button {
+  padding: 0.7rem 0.9rem;
+  border: 1px solid #b52a2a;
+  border-radius: 4px;
+  background-color: #fff;
+  color: #9d2020;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.catalog-delete-button:hover {
+  background-color: #fff0f0;
 }
 
 .device-info-modal {
@@ -1046,7 +1047,29 @@
   align-items: center;
 }
 
+.catalog-mini-form.model-inline-form {
+  grid-template-columns: minmax(140px, 210px) minmax(0, 1fr) auto;
+  align-items: end;
+}
+
+.catalog-inline-field {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.catalog-inline-field span {
+  color: var(--cfe-green-dark);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.catalog-inline-field-grow {
+  min-width: 0;
+}
+
 .catalog-mini-form input,
+.catalog-mini-form select,
 .catalog-selector-block select,
 .catalog-editor-card input,
 .catalog-editor-card select {
@@ -1057,6 +1080,14 @@
   background-color: var(--cfe-white);
   color: var(--cfe-green-deep);
   font-size: 0.94rem;
+}
+
+.catalog-mini-form .btn-cfe,
+.catalog-mini-form .btn-small {
+  padding: 0.7rem 0.9rem;
+  min-width: 92px;
+  height: fit-content;
+  align-self: end;
 }
 
 .catalog-selector-block.select-two-column,
@@ -1078,6 +1109,25 @@
   border: 1px solid var(--cfe-green-soft);
   border-radius: 10px;
   background-color: rgba(255, 255, 255, 0.7);
+}
+
+.catalog-editor-brand-update {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+}
+
+.catalog-editor-split {
+  grid-template-columns: minmax(0, 220px) minmax(0, 220px) minmax(0, 1fr) auto;
+  align-items: end;
+}
+
+.catalog-editor-split .btn-cfe,
+.catalog-editor-brand-update .btn-cfe {
+  align-self: end;
+}
+
+.catalog-editor-actions {
+  align-self: end;
 }
 
 .catalog-mini-form {
