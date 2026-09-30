@@ -15,9 +15,6 @@ const DeviceSidebar = ({
   onAreaChange,
   onSelectDevice,
   onOpenDeviceInfo,
-  onOpenManagerPanel,
-  onOpenCatalogManager,
-  onLogout,
 }) => (
   <aside className="device-sidebar" aria-label="Dispositivos agregados">
     <div className="sidebar-heading">
@@ -29,7 +26,7 @@ const DeviceSidebar = ({
       <div className="filter-toolbar">
         <label className="search-field">
           <span className="search-icon" aria-hidden="true">⌕</span>
-          <input type="search" value={searchTerm} onChange={onSearchChange} placeholder="RPE, IMEI, inventario, teléfono" aria-label="Buscar teléfono" />
+          <input type="search" value={searchTerm} onChange={onSearchChange} placeholder="RPE, Serie, inventario, teléfono" aria-label="Buscar teléfono" />
         </label>
         <button className={`filter-toggle ${statusFilter !== 'Todos' ? 'filter-toggle-active' : ''}`} type="button" onClick={onFilterToggle} aria-expanded={isFilterOpen} aria-label="Mostrar filtros">
           <span aria-hidden="true">≡</span>
@@ -61,7 +58,7 @@ const DeviceSidebar = ({
             <span className="device-info">
               <strong>{device.workerRpe || 'N/A'}</strong>
               <small>{device.workerName || 'Sin asignar'}</small>
-              <small>{device.inventoryNumber || 'Sin inventario'} · {device.imei || 'N/A'}</small>
+              <small>{device.inventoryNumber || 'Sin inventario'} · {device.serie || device.imei || 'N/A'}</small>
               <small>{device.status}</small>
             </span>
           </button>
@@ -72,16 +69,6 @@ const DeviceSidebar = ({
         </div>
       ))}
       {devices.length === 0 && <p className="empty-device-list">No se encontraron teléfonos.</p>}
-    </div>
-
-    <div className="sidebar-footer">
-      {isAdmin && (
-        <>
-          <button className="manager-admin-button" type="button" onClick={onOpenManagerPanel}><span aria-hidden="true">+</span>Crear jefe</button>
-          <button className="manager-admin-button catalog-admin-button" type="button" onClick={onOpenCatalogManager}><span aria-hidden="true">≡</span>Áreas y modelos</button>
-        </>
-      )}
-      <button onClick={onLogout} className="dashboard-logout" type="button"><span className="logout-icon" aria-hidden="true">↪</span>Cerrar Sesión</button>
     </div>
   </aside>
 );

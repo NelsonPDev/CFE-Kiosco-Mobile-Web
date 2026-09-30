@@ -28,16 +28,17 @@ const createPhoneIcon = (device) => {
   return L.divIcon({
     className: 'phone-marker-wrapper',
     html: `
-      <div class="phone-marker-pin">
-        <span class="phone-marker ${markerClass}">
-          <span class="phone-marker-screen"></span>
-        </span>
+      <div class="phone-pin-container">
         <span class="phone-marker-rpe">${label}</span>
+        <div class="phone-marker-body ${markerClass}">
+          <span class="phone-marker-screen"></span>
+          <span class="phone-marker-tip"></span>
+        </div>
       </div>
     `,
-    iconSize: [50, 76],
-    iconAnchor: [25, 72],
-    popupAnchor: [0, -66],
+    iconSize: [48, 54],
+    iconAnchor: [24, 54],
+    popupAnchor: [0, -54],
   });
 };
 
@@ -100,10 +101,55 @@ const createClusterIcon = (cluster) => {
   });
 };
 
+const getDensestPhoneLocation = (devices) => {
+  if (!Array.isArray(devices) || devices.length === 0) {
+    return mapCenter;
+  }
+
+  const clusters = {};
+
+  devices.forEach((device) => {
+    if (!device.position || !Array.isArray(device.position) || device.position.length < 2) return;
+    const [lat, lng] = device.position;
+    if (typeof lat !== 'number' || typeof lng !== 'number' || isNaN(lat) || isNaN(lng)) return;
+
+    const key = `${(Math.round(lat * 50) / 50).toFixed(2)},${(Math.round(lng * 50) / 50).toFixed(2)}`;
+
+    if (!clusters[key]) {
+      clusters[key] = {
+        count: 0,
+        latSum: 0,
+        lngSum: 0,
+      };
+    }
+
+    clusters[key].count += 1;
+    clusters[key].latSum += lat;
+    clusters[key].lngSum += lng;
+  });
+
+  let maxCluster = null;
+  let maxCount = -1;
+
+  Object.values(clusters).forEach((cluster) => {
+    if (cluster.count > maxCount) {
+      maxCount = cluster.count;
+      maxCluster = cluster;
+    }
+  });
+
+  if (maxCluster && maxCluster.count > 0) {
+    return [maxCluster.latSum / maxCluster.count, maxCluster.lngSum / maxCluster.count];
+  }
+
+  return mapCenter;
+};
+
 const DeviceMap = ({ devices, selectedDevice, onSelectDevice }) => {
   const mapElement = useRef(null);
   const mapInstance = useRef(null);
   const markersLayer = useRef(null);
+  const hasInitialCentered = useRef(false);
 
   useEffect(() => {
     const map = L.map(mapElement.current).setView(mapCenter, 12);
@@ -116,7 +162,7 @@ const DeviceMap = ({ devices, selectedDevice, onSelectDevice }) => {
       showCoverageOnHover: false,
       spiderfyOnMaxZoom: true,
       disableClusteringAtZoom: 16,
-      maxClusterRadius: 60,
+      maxClusterRadius: 55,
       iconCreateFunction: createClusterIcon,
     });
 
@@ -131,6 +177,14 @@ const DeviceMap = ({ devices, selectedDevice, onSelectDevice }) => {
       map.remove();
     };
   }, []);
+
+  useEffect(() => {
+    if (mapInstance.current && devices.length > 0 && !hasInitialCentered.current) {
+      const densestCenter = getDensestPhoneLocation(devices);
+      mapInstance.current.setView(densestCenter, 13, { animate: true });
+      hasInitialCentered.current = true;
+    }
+  }, [devices]);
 
   useEffect(() => {
     if (!markersLayer.current) {
@@ -149,7 +203,7 @@ const DeviceMap = ({ devices, selectedDevice, onSelectDevice }) => {
         <div class="device-popup">
           <div class="device-popup-title">${device.name || device.inventoryNumber || device.id}</div>
           <div class="device-popup-row"><strong>No. Inventario:</strong> ${device.inventoryNumber || 'Sin inventario'}</div>
-          <div class="device-popup-row"><strong>IMEI:</strong> ${device.imei || 'Sin IMEI'}</div>
+          <div class="device-popup-row"><strong>Serie:</strong> ${device.serie || device.imei || 'Sin Serie'}</div>
           <div class="device-popup-row"><strong>Área:</strong> ${device.location || 'Sin área'}</div>
           <div class="device-popup-row"><strong>Trabajador:</strong> ${device.workerName || 'Sin asignar'}</div>
           <div class="device-popup-row"><strong>RPE:</strong> ${device.workerRpe || 'Sin RPE'}</div>

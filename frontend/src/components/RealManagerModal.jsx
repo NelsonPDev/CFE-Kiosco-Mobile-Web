@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { api } from '../services/api';
 
 const emptyForm = (departments = []) => ({
@@ -107,6 +107,29 @@ const RealManagerModal = ({ onClose }) => {
     }
   };
 
+  const selectedManager = managers.find((item) => String(item.id) === String(editingId));
+
+  const isFormValidAndChanged = useMemo(() => {
+    if (!form.nombre.trim() || !form.rpe.trim() || !form.departamento) {
+      return false;
+    }
+
+    if (!editingId) {
+      return Boolean(form.password && form.password.length >= 6);
+    }
+
+    if (form.password && form.password.length < 6) {
+      return false;
+    }
+
+    const nameChanged = form.nombre.trim() !== (selectedManager?.nombre || '').trim();
+    const rpeChanged = form.rpe.trim() !== (selectedManager?.rpe || '').trim();
+    const deptChanged = form.departamento !== (selectedManager?.departamento || '');
+    const passTyped = Boolean(form.password && form.password.length >= 6);
+
+    return nameChanged || rpeChanged || deptChanged || passTyped;
+  }, [form, editingId, selectedManager]);
+
   return (
     <div className="manager-modal-backdrop" role="presentation">
       <section className="manager-modal manager-directory-modal" role="dialog" aria-modal="true" aria-labelledby="manager-modal-title">
@@ -145,7 +168,7 @@ const RealManagerModal = ({ onClose }) => {
 
           <div className="edit-form-actions">
             {editingId && <button className="btn-cfe btn-secondary" type="button" onClick={resetForm}>Cancelar edición</button>}
-            <button className="btn-cfe" type="submit">{editingId ? 'Guardar cambios' : 'Guardar jefe'}</button>
+            <button className="btn-cfe" type="submit" disabled={!isFormValidAndChanged}>{editingId ? 'Guardar cambios' : 'Guardar jefe'}</button>
           </div>
         </form>
 

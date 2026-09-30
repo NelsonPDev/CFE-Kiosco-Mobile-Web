@@ -50,12 +50,11 @@ const normalizeInventory = (value) => {
   return withoutPrefix;
 };
 
-const normalizeImei = (value) => {
+const normalizeSerie = (value) => {
   if (value === null || value === undefined) return 'N/A';
   const text = String(value).trim();
   if (!text) return 'N/A';
-  const digits = text.replace(/\D+/g, '');
-  return digits || 'N/A';
+  return text || 'N/A';
 };
 
 const resolveModelData = (row, modelosMap) => {
@@ -75,18 +74,18 @@ const resolveModelData = (row, modelosMap) => {
 
 const formatDeviceRow = (row, departamentosMap, modelosMap) => {
   const inventoryValue = pickFirstValue(row, ['asset_tag', 'inventario', 'numero_inventario', 'n_inventario', 'inventory_number', 'serial', 'no_inventario', 'num_inventario', 'codigo']);
-  const imeiValue = pickFirstValue(row, ['imei', 'imei_number', 'numero_imei', 'imei_tel', 'telefono_imei', 'serial_imei', 'celular_imei', 'id']);
+  const serieValue = pickFirstValue(row, ['serie', 'numero_serie', 'n_serie', 'serial_number', 'serie_tel', 'imei', 'imei_number', 'numero_imei', 'imei_tel', 'telefono_imei', 'serial_imei', 'celular_imei', 'id']);
   const inventoryNumber = normalizeInventory(inventoryValue ?? row.asset_tag);
-  const imei = normalizeImei(imeiValue ?? row.imei ?? 'N/A');
+  const serie = normalizeSerie(serieValue ?? row.serie ?? row.imei ?? 'N/A');
   const modelInfo = resolveModelData(row, modelosMap);
-  const realIdentifier = row.imei ?? row.asset_tag ?? row.id ?? null;
+  const realIdentifier = row.serie ?? row.imei ?? row.asset_tag ?? row.id ?? null;
 
   return {
     databaseId: realIdentifier,
-    id: imei !== 'N/A' ? imei : (row.imei ?? row.asset_tag ?? row.id ?? inventoryNumber),
+    id: serie !== 'N/A' ? serie : (row.serie ?? row.imei ?? row.asset_tag ?? row.id ?? inventoryNumber),
     name: inventoryNumber,
     displayName: inventoryNumber || 'N/A',
-    imei,
+    serie,
     inventoryNumber,
     status: normalizeStatus(row.location_enabled === true ? 'En línea' : 'Fuera de línea'),
     location: departamentosMap[row.departamento_id] ?? row.location ?? 'Sin ubicación',
@@ -602,7 +601,8 @@ const updateDevice = async (req, res) => {
     if (payload.role !== undefined) updates.worker_position = String(payload.role).trim();
     if (payload.puesto !== undefined && payload.role === undefined) updates.worker_position = String(payload.puesto).trim();
     if (payload.phoneNumber !== undefined) updates.phone_number = String(payload.phoneNumber).trim();
-    if (payload.imei !== undefined && String(payload.imei).trim() !== '') updates.imei = String(payload.imei).trim();
+    if (payload.serie !== undefined && String(payload.serie).trim() !== '') updates.serie = String(payload.serie).trim();
+    else if (payload.imei !== undefined && String(payload.imei).trim() !== '') updates.serie = String(payload.imei).trim();
     if (payload.inventoryNumber !== undefined) {
       const inventoryNumber = String(payload.inventoryNumber).trim();
       updates.asset_tag = inventoryNumber || null;
@@ -632,6 +632,7 @@ const updateDevice = async (req, res) => {
     const lookupCandidates = Array.from(new Set([
       deviceId,
       payload.databaseId,
+      payload.serie,
       payload.imei,
       payload.inventoryNumber,
       payload.id,
@@ -642,17 +643,25 @@ const updateDevice = async (req, res) => {
     let matchColumn = null;
 
     for (const candidate of lookupCandidates) {
+      const serieMatch = await supabase
+        .from('kioscos')
+        .select('*')
+        .eq('serie', candidate)
+        .limit(1);
+
+      if (!serieMatch.error && serieMatch.data?.[0]) {
+        matchedDevice = serieMatch.data[0];
+        matchColumn = 'serie';
+        break;
+      }
+
       const imeiMatch = await supabase
         .from('kioscos')
-        .select('imei, asset_tag')
+        .select('*')
         .eq('imei', candidate)
         .limit(1);
 
-      if (imeiMatch.error) {
-        return res.status(500).json({ message: 'No se pudo localizar el dispositivo para actualizar.', details: imeiMatch.error.message });
-      }
-
-      if (imeiMatch.data?.[0]) {
+      if (!imeiMatch.error && imeiMatch.data?.[0]) {
         matchedDevice = imeiMatch.data[0];
         matchColumn = 'imei';
         break;
@@ -660,15 +669,11 @@ const updateDevice = async (req, res) => {
 
       const inventoryMatch = await supabase
         .from('kioscos')
-        .select('imei, asset_tag')
+        .select('*')
         .eq('asset_tag', candidate)
         .limit(1);
 
-      if (inventoryMatch.error) {
-        return res.status(500).json({ message: 'No se pudo localizar el dispositivo para actualizar.', details: inventoryMatch.error.message });
-      }
-
-      if (inventoryMatch.data?.[0]) {
+      if (!inventoryMatch.error && inventoryMatch.data?.[0]) {
         matchedDevice = inventoryMatch.data[0];
         matchColumn = 'asset_tag';
         break;

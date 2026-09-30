@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../services/api';
 
-const CatalogManagerModal = ({ departments = [], models = [], onClose, onCatalogChange }) => {
-  const [activeTab, setActiveTab] = useState('departments');
+const CatalogManagerModal = ({ mode = 'departments', departments = [], models = [], onClose, onCatalogChange }) => {
+  const isDepartmentsMode = mode === 'departments';
+  const [activeTab, setActiveTab] = useState(isDepartmentsMode ? 'departments' : 'brands');
   const [newDepartment, setNewDepartment] = useState('');
   const [selectedDepartmentId, setSelectedDepartmentId] = useState('');
   const [departmentDraft, setDepartmentDraft] = useState('');
@@ -24,6 +25,10 @@ const CatalogManagerModal = ({ departments = [], models = [], onClose, onCatalog
     () => models.filter((item) => item.modelo && item.marca === selectedBrand),
     [models, selectedBrand],
   );
+
+  useEffect(() => {
+    setActiveTab(isDepartmentsMode ? 'departments' : 'brands');
+  }, [mode, isDepartmentsMode]);
 
   useEffect(() => {
     if (departments.length > 0 && !selectedDepartmentId) {
@@ -237,180 +242,330 @@ const CatalogManagerModal = ({ departments = [], models = [], onClose, onCatalog
     }
   };
 
+  const selectedDept = departments.find((item) => String(item.id) === String(selectedDepartmentId));
+  const isDeptChanged = Boolean(
+    selectedDepartmentId &&
+    departmentDraft.trim() !== '' &&
+    departmentDraft.trim() !== (selectedDept?.nombre || '')
+  );
+
+  const isBrandChanged = Boolean(
+    selectedBrand &&
+    brandDraft.trim() !== '' &&
+    brandDraft.trim() !== selectedBrand.trim()
+  );
+
+  const selectedModel = models.find((item) => String(item.id) === String(selectedModelId));
+  const effectiveBrand = (targetModelBrand || selectedBrand).trim();
+  const originalBrand = (selectedModel?.marca || selectedBrand).trim();
+  const isModelChanged = Boolean(
+    selectedModelId &&
+    modelDraft.modelo.trim() !== '' &&
+    (
+      modelDraft.modelo.trim() !== (selectedModel?.modelo || '').trim() ||
+      effectiveBrand !== originalBrand
+    )
+  );
+
   const renderDepartments = () => (
     <div className="catalog-workspace">
-      <section className="catalog-section">
+      <div className="edit-section-card">
         <h3>Nueva área</h3>
-        <div className="catalog-form-row">
+        <div className="catalog-form-grid single-column">
           <label className="catalog-field">
             Nombre del área
-            <input value={newDepartment} onChange={(event) => setNewDepartment(event.target.value)} placeholder="Ej. Operación Poniente" />
+            <input
+              type="text"
+              value={newDepartment}
+              onChange={(event) => setNewDepartment(event.target.value)}
+            />
           </label>
-          <button type="button" className="btn-cfe" onClick={handleCreateDepartment}>Crear área</button>
         </div>
-      </section>
+        <div className="edit-form-actions">
+          <button type="button" className="btn-cfe" onClick={handleCreateDepartment} disabled={!newDepartment.trim()}>
+            Crear área
+          </button>
+        </div>
+      </div>
 
-      <section className="catalog-section">
+      <div className="edit-section-card">
         <h3>Editar o eliminar área</h3>
-        <div className="catalog-form-grid">
+        <div className="catalog-form-grid two-columns">
           <label className="catalog-field">
-            Área
+            Área a modificar
             <select value={selectedDepartmentId} onChange={handleSelectDepartment}>
               <option value="">Selecciona un área</option>
-              {departments.map((department) => <option key={department.id} value={department.id}>{department.nombre}</option>)}
+              {departments.map((department) => (
+                <option key={department.id} value={department.id}>
+                  {department.nombre}
+                </option>
+              ))}
             </select>
           </label>
           <label className="catalog-field">
             Nombre del área
-            <input value={departmentDraft} onChange={(event) => setDepartmentDraft(event.target.value)} disabled={!selectedDepartmentId} />
+            <input
+              type="text"
+              value={departmentDraft}
+              onChange={(event) => setDepartmentDraft(event.target.value)}
+              disabled={!selectedDepartmentId}
+            />
           </label>
         </div>
-        <div className="catalog-action-row">
-          <button type="button" className="catalog-delete-button" onClick={handleDeleteDepartment} disabled={!selectedDepartmentId}>Eliminar área</button>
-          <button type="button" className="btn-cfe" onClick={handleSaveDepartment} disabled={!selectedDepartmentId}>Guardar cambios</button>
+        <div className="edit-form-actions">
+          <button
+            type="button"
+            className="catalog-delete-button"
+            onClick={handleDeleteDepartment}
+            disabled={!selectedDepartmentId}
+          >
+            Eliminar área
+          </button>
+          <button
+            type="button"
+            className="btn-cfe"
+            onClick={handleSaveDepartment}
+            disabled={!isDeptChanged}
+          >
+            Guardar cambios
+          </button>
         </div>
-      </section>
+      </div>
     </div>
   );
 
   const renderBrands = () => (
     <div className="catalog-workspace">
-      <section className="catalog-section">
+      <div className="edit-section-card">
         <h3>Nueva marca</h3>
-        <div className="catalog-form-row">
+        <div className="catalog-form-grid single-column">
           <label className="catalog-field">
             Nombre de la marca
-            <input value={newBrand} onChange={(event) => setNewBrand(event.target.value)} placeholder="Ej. Samsung" />
+            <input
+              type="text"
+              value={newBrand}
+              onChange={(event) => setNewBrand(event.target.value)}
+            />
           </label>
-          <button type="button" className="btn-cfe" onClick={handleCreateBrand}>Crear marca</button>
         </div>
-      </section>
+        <div className="edit-form-actions">
+          <button type="button" className="btn-cfe" onClick={handleCreateBrand} disabled={!newBrand.trim()}>
+            Crear marca
+          </button>
+        </div>
+      </div>
 
-      <section className="catalog-section">
+      <div className="edit-section-card">
         <h3>Editar o eliminar marca</h3>
-        <div className="catalog-form-grid">
+        <div className="catalog-form-grid two-columns">
           <label className="catalog-field">
-            Marca
-            <select value={selectedBrand} onChange={(event) => {
-              setSelectedBrand(event.target.value);
-              setBrandDraft(event.target.value);
-            }}>
+            Marca a modificar
+            <select
+              value={selectedBrand}
+              onChange={(event) => {
+                setSelectedBrand(event.target.value);
+                setBrandDraft(event.target.value);
+              }}
+            >
               <option value="">Selecciona una marca</option>
-              {brandOptions.map((brand) => <option key={brand} value={brand}>{brand}</option>)}
+              {brandOptions.map((brand) => (
+                <option key={brand} value={brand}>
+                  {brand}
+                </option>
+              ))}
             </select>
           </label>
           <label className="catalog-field">
             Nuevo nombre
-            <input value={brandDraft} onChange={(event) => setBrandDraft(event.target.value)} disabled={!selectedBrand} />
+            <input
+              type="text"
+              value={brandDraft}
+              onChange={(event) => setBrandDraft(event.target.value)}
+              disabled={!selectedBrand}
+            />
           </label>
         </div>
-        <div className="catalog-action-row">
-          <button type="button" className="catalog-delete-button" onClick={handleDeleteBrand} disabled={!selectedBrand}>Eliminar marca</button>
-          <button type="button" className="btn-cfe" onClick={handleSaveBrand} disabled={!selectedBrand}>Guardar cambios</button>
+        <div className="edit-form-actions">
+          <button
+            type="button"
+            className="catalog-delete-button"
+            onClick={handleDeleteBrand}
+            disabled={!selectedBrand}
+          >
+            Eliminar marca
+          </button>
+          <button
+            type="button"
+            className="btn-cfe"
+            onClick={handleSaveBrand}
+            disabled={!isBrandChanged}
+          >
+            Guardar cambios
+          </button>
         </div>
-      </section>
+      </div>
     </div>
   );
 
   const renderModels = () => (
     <div className="catalog-workspace">
-      <section className="catalog-section">
+      <div className="edit-section-card">
         <h3>Nuevo modelo</h3>
-        <div className="catalog-form-grid">
+        <div className="catalog-form-grid two-columns">
           <label className="catalog-field">
             Marca
-            <select value={newModel.marca} onChange={(event) => setNewModel((current) => ({ ...current, marca: event.target.value }))}>
+            <select
+              value={newModel.marca}
+              onChange={(event) => setNewModel((current) => ({ ...current, marca: event.target.value }))}
+            >
               <option value="">Selecciona una marca</option>
-              {brandOptions.map((brand) => <option key={brand} value={brand}>{brand}</option>)}
+              {brandOptions.map((brand) => (
+                <option key={brand} value={brand}>
+                  {brand}
+                </option>
+              ))}
             </select>
           </label>
           <label className="catalog-field">
             Nombre del modelo
-            <input value={newModel.modelo} onChange={(event) => setNewModel((current) => ({ ...current, modelo: event.target.value }))} placeholder="Ej. Galaxy A54" />
+            <input
+              type="text"
+              value={newModel.modelo}
+              onChange={(event) => setNewModel((current) => ({ ...current, modelo: event.target.value }))}
+            />
           </label>
         </div>
-        <div className="catalog-action-row">
-          <button type="button" className="btn-cfe" onClick={handleCreateModel} disabled={!newModel.marca}>Crear modelo</button>
+        <div className="edit-form-actions">
+          <button
+            type="button"
+            className="btn-cfe"
+            onClick={handleCreateModel}
+            disabled={!newModel.marca || !newModel.modelo.trim()}
+          >
+            Crear modelo
+          </button>
         </div>
-      </section>
+      </div>
 
-      <section className="catalog-section">
+      <div className="edit-section-card">
         <h3>Editar o eliminar modelo</h3>
-        <div className="catalog-form-grid">
+        <div className="catalog-form-grid two-columns">
           <label className="catalog-field">
             Marca del modelo
-            <select value={selectedBrand} onChange={(event) => {
-              setSelectedBrand(event.target.value);
-              setSelectedModelId('');
-              setModelDraft({ marca: event.target.value, modelo: '' });
-            }}>
+            <select
+              value={selectedBrand}
+              onChange={(event) => {
+                setSelectedBrand(event.target.value);
+                setSelectedModelId('');
+                setModelDraft({ marca: event.target.value, modelo: '' });
+              }}
+            >
               <option value="">Selecciona una marca</option>
-              {brandOptions.map((brand) => <option key={brand} value={brand}>{brand}</option>)}
+              {brandOptions.map((brand) => (
+                <option key={brand} value={brand}>
+                  {brand}
+                </option>
+              ))}
             </select>
           </label>
           <label className="catalog-field">
             Modelo
             <select value={selectedModelId} onChange={handleSelectModel} disabled={!selectedBrand}>
               <option value="">Selecciona un modelo</option>
-              {modelOptions.map((model) => <option key={model.id} value={model.id}>{model.modelo}</option>)}
+              {modelOptions.map((model) => (
+                <option key={model.id} value={model.id}>
+                  {model.modelo}
+                </option>
+              ))}
             </select>
           </label>
           <label className="catalog-field">
             Cambiar a marca
-            <select value={targetModelBrand} onChange={(event) => setTargetModelBrand(event.target.value)} disabled={!selectedModelId}>
+            <select
+              value={targetModelBrand}
+              onChange={(event) => setTargetModelBrand(event.target.value)}
+              disabled={!selectedModelId}
+            >
               <option value="">Mantener marca actual</option>
-              {brandOptions.map((brand) => <option key={brand} value={brand}>{brand}</option>)}
+              {brandOptions.map((brand) => (
+                <option key={brand} value={brand}>
+                  {brand}
+                </option>
+              ))}
             </select>
           </label>
           <label className="catalog-field">
             Nombre del modelo
-            <input value={modelDraft.modelo} onChange={(event) => setModelDraft((current) => ({ ...current, modelo: event.target.value }))} disabled={!selectedModelId} />
+            <input
+              type="text"
+              value={modelDraft.modelo}
+              onChange={(event) => setModelDraft((current) => ({ ...current, modelo: event.target.value }))}
+              disabled={!selectedModelId}
+            />
           </label>
         </div>
-        <div className="catalog-action-row">
-          <button type="button" className="catalog-delete-button" onClick={handleDeleteModel} disabled={!selectedModelId}>Eliminar modelo</button>
-          <button type="button" className="btn-cfe" onClick={handleSaveModel} disabled={!selectedModelId}>Guardar cambios</button>
+        <div className="edit-form-actions">
+          <button
+            type="button"
+            className="catalog-delete-button"
+            onClick={handleDeleteModel}
+            disabled={!selectedModelId}
+          >
+            Eliminar modelo
+          </button>
+          <button
+            type="button"
+            className="btn-cfe"
+            onClick={handleSaveModel}
+            disabled={!isModelChanged}
+          >
+            Guardar cambios
+          </button>
         </div>
-      </section>
+      </div>
     </div>
   );
 
-  const tabs = [
-    { id: 'departments', label: 'Áreas', content: renderDepartments },
+  const modelTabs = [
     { id: 'brands', label: 'Marcas', content: renderBrands },
     { id: 'models', label: 'Modelos', content: renderModels },
   ];
-  const activeContent = tabs.find((tab) => tab.id === activeTab)?.content || renderDepartments;
+
+  const activeContent = isDepartmentsMode
+    ? renderDepartments
+    : (modelTabs.find((tab) => tab.id === activeTab)?.content || renderBrands);
 
   return (
     <div className="manager-modal-backdrop" role="presentation">
       <section className="manager-modal catalog-manager-modal" role="dialog" aria-modal="true" aria-labelledby="catalog-modal-title">
         <div className="manager-modal-header">
           <div>
-            <span className="section-eyebrow">Catálogos</span>
-            <h2 id="catalog-modal-title">Áreas, marcas y modelos</h2>
+            <span className="section-eyebrow">{isDepartmentsMode ? 'Catálogo' : 'Teléfonos'}</span>
+            <h2 id="catalog-modal-title">{isDepartmentsMode ? 'Gestión de áreas' : 'Marcas y modelos'}</h2>
           </div>
-          <button className="modal-close" type="button" onClick={onClose} aria-label="Cerrar gestión de catálogos">×</button>
+          <button className="modal-close" type="button" onClick={onClose} aria-label="Cerrar modal">×</button>
         </div>
 
-        <div className="section-switcher catalog-tabs" role="tablist" aria-label="Catálogos disponibles">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              className={`section-tab ${activeTab === tab.id ? 'active' : ''}`}
-              role="tab"
-              aria-selected={activeTab === tab.id}
-              onClick={() => {
-                setActiveTab(tab.id);
-                setError('');
-                setSuccess('');
-              }}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
+        {!isDepartmentsMode && (
+          <div className="section-switcher catalog-tabs" role="tablist" aria-label="Categorías de teléfono">
+            {modelTabs.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                className={`section-tab ${activeTab === tab.id ? 'active' : ''}`}
+                role="tab"
+                aria-selected={activeTab === tab.id}
+                onClick={() => {
+                  setActiveTab(tab.id);
+                  setError('');
+                  setSuccess('');
+                }}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        )}
 
         {activeContent()}
 

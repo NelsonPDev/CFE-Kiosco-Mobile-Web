@@ -19,7 +19,7 @@ const Dashboard = ({ user, onLogout }) => {
   const [areaFilter, setAreaFilter] = useState('Todas');
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [isManagerPanelOpen, setIsManagerPanelOpen] = useState(false);
-  const [isCatalogModalOpen, setIsCatalogModalOpen] = useState(false);
+  const [catalogModalMode, setCatalogModalMode] = useState(null);
   const [deviceModal, setDeviceModal] = useState(null);
   useEffect(() => {
     const loadDevices = async () => {
@@ -62,6 +62,7 @@ const Dashboard = ({ user, onLogout }) => {
         device.workerName,
         device.workerRpe,
         device.phoneNumber,
+        device.serie,
         device.imei,
         device.inventoryNumber,
         device.brand,
@@ -115,7 +116,7 @@ const Dashboard = ({ user, onLogout }) => {
       const selectedRole = deviceModal.device.role ?? deviceModal.device.puesto ?? '';
 
       const payload = {
-        databaseId: deviceModal.device.databaseId ?? deviceModal.device.imei ?? deviceModal.device.id ?? deviceModal.device.inventoryNumber ?? null,
+        databaseId: deviceModal.device.databaseId ?? deviceModal.device.serie ?? deviceModal.device.imei ?? deviceModal.device.id ?? deviceModal.device.inventoryNumber ?? null,
       };
 
       if (section === 'worker') {
@@ -136,7 +137,7 @@ const Dashboard = ({ user, onLogout }) => {
           model: deviceModal.device.model ?? '',
           modelId: selectedModel?.id ?? deviceModal.device.modelId ?? null,
           inventoryNumber: deviceModal.device.inventoryNumber ?? '',
-          imei: deviceModal.device.imei ?? deviceModal.device.id ?? null,
+          serie: deviceModal.device.serie ?? deviceModal.device.imei ?? deviceModal.device.id ?? null,
         });
       }
 
@@ -163,7 +164,7 @@ const Dashboard = ({ user, onLogout }) => {
         Object.assign(payload, { adminPassword });
       }
 
-      const targetId = deviceModal.device.databaseId ?? deviceModal.device.imei ?? deviceModal.device.id ?? deviceModal.device.inventoryNumber ?? '';
+      const targetId = deviceModal.device.databaseId ?? deviceModal.device.serie ?? deviceModal.device.imei ?? deviceModal.device.id ?? deviceModal.device.inventoryNumber ?? '';
       const { data } = await api.put(`/api/devices/${targetId}`, payload);
       const updatedDevice = data.device;
 
@@ -219,8 +220,28 @@ const Dashboard = ({ user, onLogout }) => {
           <img src={logo} alt="CFE Kiosco Mobile" className="dashboard-logo" />
           <h1>CFE Kiosco Mobile</h1>
         </div>
-        <div className="dashboard-session">
-          <span>Bienvenido, <strong>{user.username}</strong></span>
+
+        <div className="dashboard-header-controls">
+          {isAdmin && (
+            <div className="header-admin-actions">
+              <button className="header-action-button" type="button" onClick={() => setIsManagerPanelOpen(true)}>
+                Crear jefe
+              </button>
+              <button className="header-action-button" type="button" onClick={() => setCatalogModalMode('departments')}>
+                Áreas
+              </button>
+              <button className="header-action-button" type="button" onClick={() => setCatalogModalMode('models')}>
+                Marcas y modelos
+              </button>
+            </div>
+          )}
+
+          <div className="dashboard-session">
+            <span>Bienvenido, <strong>{user.username}</strong></span>
+            <button onClick={onLogout} className="dashboard-logout-button" type="button" title="Cerrar sesión">
+              Cerrar Sesión
+            </button>
+          </div>
         </div>
       </header>
 
@@ -244,9 +265,6 @@ const Dashboard = ({ user, onLogout }) => {
         }}
         onSelectDevice={selectDevice}
         onOpenDeviceInfo={openDeviceModal}
-        onOpenManagerPanel={() => setIsManagerPanelOpen(true)}
-        onOpenCatalogManager={() => setIsCatalogModalOpen(true)}
-        onLogout={onLogout}
       />
 
       <main className="dashboard-main">
@@ -299,11 +317,12 @@ const Dashboard = ({ user, onLogout }) => {
         <RealManagerModal onClose={() => setIsManagerPanelOpen(false)} />
       )}
 
-      {isAdmin && isCatalogModalOpen && (
+      {isAdmin && catalogModalMode && (
         <CatalogManagerModal
+          mode={catalogModalMode}
           departments={deviceCatalog.departments}
           models={deviceCatalog.models}
-          onClose={() => setIsCatalogModalOpen(false)}
+          onClose={() => setCatalogModalMode(null)}
           onCatalogChange={refreshCatalogs}
         />
       )}

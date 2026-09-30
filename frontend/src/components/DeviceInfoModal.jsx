@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 const DeviceInfoModal = ({
   device,
@@ -23,6 +23,48 @@ const DeviceInfoModal = ({
     { id: 'device', label: 'Teléfono' },
     { id: 'password', label: 'Modo kiosco' },
   ];
+
+  const [initialDeviceState, setInitialDeviceState] = useState(null);
+
+  useEffect(() => {
+    if (isEditing && !initialDeviceState && device) {
+      setInitialDeviceState({ ...device });
+    }
+  }, [isEditing, device, initialDeviceState]);
+
+  const isWorkerFormChanged = useMemo(() => {
+    if (!initialDeviceState || selectedTab !== 'worker') return false;
+    const rpeChanged = (device.workerRpe || '').trim() !== (initialDeviceState.workerRpe || '').trim();
+    const nameChanged = (device.workerName || '').trim() !== (initialDeviceState.workerName || '').trim();
+    const locationChanged = (device.location || '').trim() !== (initialDeviceState.location || '').trim();
+    const roleChanged = (device.role ?? device.puesto ?? '').trim() !== (initialDeviceState.role ?? initialDeviceState.puesto ?? '').trim();
+    const hasValidFields = Boolean((device.workerRpe || '').trim() && (device.workerName || '').trim());
+    return hasValidFields && (rpeChanged || nameChanged || locationChanged || roleChanged);
+  }, [device, initialDeviceState, selectedTab]);
+
+  const isDeviceFormChanged = useMemo(() => {
+    if (!initialDeviceState || selectedTab !== 'device') return false;
+    const invChanged = (device.inventoryNumber ?? '').trim() !== (initialDeviceState.inventoryNumber ?? '').trim();
+    const serieChanged = (device.serie || device.imei || '').trim() !== (initialDeviceState.serie || initialDeviceState.imei || '').trim();
+    const brandChanged = (device.brand || '').trim() !== (initialDeviceState.brand || '').trim();
+    const modelChanged = (device.model || '').trim() !== (initialDeviceState.model || '').trim();
+    const phoneChanged = (device.phoneNumber || '').trim() !== (initialDeviceState.phoneNumber || '').trim();
+    const hasValidFields = Boolean((device.serie || device.imei || '').trim() && (device.phoneNumber || '').trim());
+    return hasValidFields && (invChanged || serieChanged || brandChanged || modelChanged || phoneChanged);
+  }, [device, initialDeviceState, selectedTab]);
+
+  const isPasswordFormChanged = useMemo(() => {
+    if (selectedTab !== 'password') return false;
+    const pass = device.adminPassword || '';
+    const confirm = device.confirmAdminPassword || '';
+    return pass.length >= 6 && pass === confirm;
+  }, [device, selectedTab]);
+
+  const isSaveDisabled = selectedTab === 'worker'
+    ? !isWorkerFormChanged
+    : selectedTab === 'device'
+      ? !isDeviceFormChanged
+      : !isPasswordFormChanged;
 
   const updateField = (field, value) => {
     if (field === 'brand') {
@@ -86,8 +128,8 @@ const DeviceInfoModal = ({
             <input type="text" value={device.inventoryNumber ?? ''} onChange={(event) => updateField('inventoryNumber', event.target.value)} />
           </label>
           <label>
-            IMEI
-            <input type="text" value={device.imei || ''} onChange={(event) => updateField('imei', event.target.value)} required />
+            Serie
+            <input type="text" value={device.serie || device.imei || ''} onChange={(event) => updateField('serie', event.target.value)} required />
           </label>
 
           <div className="device-model-row">
@@ -185,7 +227,7 @@ const DeviceInfoModal = ({
 
             <div className="edit-form-actions">
               <button className="btn-cfe btn-secondary" type="button" onClick={onClose}>Cancelar</button>
-              <button className="btn-cfe" type="submit">
+              <button className="btn-cfe" type="submit" disabled={isSaveDisabled}>
                 {selectedTab === 'worker' ? 'Guardar trabajador' : selectedTab === 'device' ? 'Guardar teléfono' : 'Guardar contraseña'}
               </button>
             </div>
@@ -212,7 +254,7 @@ const DeviceInfoModal = ({
 
                 <div className="device-detail-column">
                   <div><span>No. Inventario</span><strong>{device.inventoryNumber || 'Sin inventario'}</strong></div>
-                  <div><span>IMEI</span><strong>{device.imei || 'Sin IMEI'}</strong></div>
+                  <div><span>Serie</span><strong>{device.serie || device.imei || 'Sin Serie'}</strong></div>
                   <div><span>Teléfono</span><strong>{device.phoneNumber}</strong></div>
                   <div><span>Marca/Modelo</span><strong>{[device.brand, device.model].filter(Boolean).join(' / ') || 'Sin información'}</strong></div>
                 </div>
