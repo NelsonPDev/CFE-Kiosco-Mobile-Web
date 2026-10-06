@@ -12,6 +12,8 @@ const DeviceInfoModal = ({
   onClose,
   onEdit,
   onSave,
+  onDelete,
+  onViewHistory,
 }) => {
   const [selectedTab, setSelectedTab] = useState('worker');
 
@@ -241,7 +243,6 @@ const DeviceInfoModal = ({
               <div className="device-details-status">
                 <span className="device-status-dot" aria-hidden="true" />
                 <strong>{device.status}</strong>
-                <small>{device.lastUpdate}</small>
               </div>
 
               <div className="device-detail-grid">
@@ -260,7 +261,15 @@ const DeviceInfoModal = ({
                 </div>
               </div>
 
-              {isAdmin && <button className="btn-cfe" type="button" onClick={onEdit}>Modificar información</button>}
+              <div className="device-detail-actions">
+                <button className="btn-cfe btn-secondary" type="button" onClick={onViewHistory}>Ver historial</button>
+                {isAdmin && (
+                  <>
+                    <button className="device-danger-button" type="button" onClick={onDelete}>Eliminar teléfono</button>
+                    <button className="btn-cfe" type="button" onClick={onEdit}>Modificar información</button>
+                  </>
+                )}
+              </div>
             </div>
           </>
         )}

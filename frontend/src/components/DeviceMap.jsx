@@ -145,10 +145,11 @@ const getDensestPhoneLocation = (devices) => {
   return mapCenter;
 };
 
-const DeviceMap = ({ devices, selectedDevice, onSelectDevice }) => {
+const DeviceMap = ({ devices, selectedDevice, historyPoints = [], onSelectDevice }) => {
   const mapElement = useRef(null);
   const mapInstance = useRef(null);
   const markersLayer = useRef(null);
+  const historyLayer = useRef(null);
   const hasInitialCentered = useRef(false);
 
   useEffect(() => {
@@ -168,11 +169,13 @@ const DeviceMap = ({ devices, selectedDevice, onSelectDevice }) => {
 
     markersLayer.current = clusterGroup;
     clusterGroup.addTo(map);
+    historyLayer.current = L.layerGroup().addTo(map);
     mapInstance.current = map;
 
     return () => {
       mapInstance.current = null;
       markersLayer.current = null;
+      historyLayer.current = null;
       clusterGroup.remove();
       map.remove();
     };
@@ -235,6 +238,42 @@ const DeviceMap = ({ devices, selectedDevice, onSelectDevice }) => {
       markersLayer.current.addLayer(marker);
     });
   }, [devices, onSelectDevice]);
+
+  useEffect(() => {
+    if (!historyLayer.current || !mapInstance.current) return;
+
+    historyLayer.current.clearLayers();
+    const positions = historyPoints
+      .filter((point) => Number.isFinite(point.latitude) && Number.isFinite(point.longitude))
+      .map((point) => [point.latitude, point.longitude]);
+
+    if (positions.length === 0) return;
+
+    L.polyline(positions, {
+      color: '#c46b00',
+      weight: 4,
+      opacity: 0.9,
+    }).addTo(historyLayer.current);
+
+    historyPoints.forEach((point, index) => {
+      if (!Number.isFinite(point.latitude) || !Number.isFinite(point.longitude)) return;
+
+      const isStart = index === 0;
+      const isEnd = index === historyPoints.length - 1;
+      const marker = L.circleMarker([point.latitude, point.longitude], {
+        radius: isStart || isEnd ? 7 : 4,
+        color: isStart ? '#007a3d' : isEnd ? '#b52a2a' : '#c46b00',
+        weight: 2,
+        fillColor: '#ffffff',
+        fillOpacity: 1,
+      });
+      const recordedAt = point.createdAt ? new Date(point.createdAt).toLocaleString() : 'Sin fecha';
+      marker.bindPopup(`<strong>${isStart ? 'Inicio' : isEnd ? 'Fin' : 'Ubicación'}</strong><br>${recordedAt}`);
+      marker.addTo(historyLayer.current);
+    });
+
+    mapInstance.current.fitBounds(L.latLngBounds(positions), { padding: [38, 38], maxZoom: 16 });
+  }, [historyPoints]);
 
   useEffect(() => {
     if (mapInstance.current && selectedDevice) {

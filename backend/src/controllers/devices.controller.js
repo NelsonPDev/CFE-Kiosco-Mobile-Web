@@ -711,4 +711,144 @@ const updateDevice = async (req, res) => {
   }
 };
 
-module.exports = { getDevices, getDeviceCatalogs, createDepartment, updateDepartment, deleteDepartment, createBrand, updateBrand, deleteBrand, createModel, updateModel, deleteModel, updateDevice };
+const getDeviceHistory = async (req, res) => {
+  if (!supabase) {
+    return res.status(503).json({ message: 'Sin conexión a Supabase.' });
+  }
+
+  const deviceId = String(req.params.id ?? '').trim();
+  const from = new Date(req.query.from);
+  const to = new Date(req.query.to);
+
+  if (!deviceId) {
+    return res.status(400).json({ message: 'Falta el identificador del dispositivo.' });
+  }
+
+  if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime()) || from >= to) {
+    return res.status(400).json({ message: 'Selecciona un intervalo válido de fecha y hora.' });
+  }
+
+  try {
+    const serieMatch = await supabase
+      .from('kioscos')
+      .select('serie, asset_tag')
+      .eq('serie', deviceId)
+      .limit(1);
+
+    if (serieMatch.error) {
+      return res.status(500).json({ message: 'No se pudo localizar el dispositivo.', details: serieMatch.error.message });
+    }
+
+    let device = serieMatch.data?.[0] || null;
+    if (!device) {
+      const inventoryMatch = await supabase
+        .from('kioscos')
+        .select('serie, asset_tag')
+        .eq('asset_tag', deviceId)
+        .limit(1);
+
+      if (inventoryMatch.error) {
+        return res.status(500).json({ message: 'No se pudo localizar el dispositivo.', details: inventoryMatch.error.message });
+      }
+
+      device = inventoryMatch.data?.[0] || null;
+    }
+
+    if (!device?.serie) {
+      return res.status(404).json({ message: 'No se encontró el dispositivo.' });
+    }
+
+    const { data, error } = await supabase
+      .from('historial_ubicaciones')
+      .select('id, latitude, longitude, created_at')
+      .eq('kiosk_serie', device.serie)
+      .gte('created_at', from.toISOString())
+      .lte('created_at', to.toISOString())
+      .order('created_at', { ascending: true })
+      .limit(5000);
+
+    if (error) {
+      return res.status(500).json({ message: 'No se pudo consultar el historial de ubicaciones.', details: error.message });
+    }
+
+    const points = (data || [])
+      .map((point) => ({
+        id: point.id,
+        latitude: Number(point.latitude),
+        longitude: Number(point.longitude),
+        createdAt: point.created_at,
+      }))
+      .filter((point) => Number.isFinite(point.latitude) && Number.isFinite(point.longitude));
+
+    return res.json({ points, total: points.length });
+  } catch (error) {
+    console.error('Error consultando historial del dispositivo:', error.message);
+    return res.status(500).json({ message: 'Error al consultar el historial de ubicaciones.' });
+  }
+};
+
+const deleteDevice = async (req, res) => {
+  if (!supabase) {
+    return res.status(503).json({ message: 'Sin conexión a Supabase.' });
+  }
+
+  const deviceId = String(req.params.id ?? '').trim();
+  if (!deviceId) {
+    return res.status(400).json({ message: 'Falta el identificador del dispositivo.' });
+  }
+
+  try {
+    const serieMatch = await supabase
+      .from('kioscos')
+      .select('serie, asset_tag')
+      .eq('serie', deviceId)
+      .limit(1);
+
+    if (serieMatch.error) {
+      return res.status(500).json({ message: 'No se pudo localizar el dispositivo.', details: serieMatch.error.message });
+    }
+
+    let matchedDevice = serieMatch.data?.[0] || null;
+    let matchColumn = matchedDevice ? 'serie' : null;
+
+    if (!matchedDevice) {
+      const inventoryMatch = await supabase
+        .from('kioscos')
+        .select('serie, asset_tag')
+        .eq('asset_tag', deviceId)
+        .limit(1);
+
+      if (inventoryMatch.error) {
+        return res.status(500).json({ message: 'No se pudo localizar el dispositivo.', details: inventoryMatch.error.message });
+      }
+
+      matchedDevice = inventoryMatch.data?.[0] || null;
+      matchColumn = matchedDevice ? 'asset_tag' : null;
+    }
+
+    if (!matchedDevice || !matchColumn) {
+      return res.status(404).json({ message: 'No se encontró el dispositivo.' });
+    }
+
+    const { data, error } = await supabase
+      .from('kioscos')
+      .delete()
+      .eq(matchColumn, matchedDevice[matchColumn])
+      .select('serie, asset_tag');
+
+    if (error) {
+      return res.status(500).json({ message: 'No se pudo eliminar el dispositivo.', details: error.message });
+    }
+
+    if (!data?.length) {
+      return res.status(404).json({ message: 'No se encontró el dispositivo.' });
+    }
+
+    return res.json({ message: 'Dispositivo eliminado correctamente.' });
+  } catch (error) {
+    console.error('Error eliminando dispositivo en Supabase:', error.message);
+    return res.status(500).json({ message: 'Error al eliminar el dispositivo.' });
+  }
+};
+
+module.exports = { getDevices, getDeviceCatalogs, createDepartment, updateDepartment, deleteDepartment, createBrand, updateBrand, deleteBrand, createModel, updateModel, deleteModel, updateDevice, getDeviceHistory, deleteDevice };

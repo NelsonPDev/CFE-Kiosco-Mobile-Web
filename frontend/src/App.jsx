@@ -1,6 +1,7 @@
 ﻿import React, { useState } from 'react'
 import Login from './components/Login'
 import Dashboard from './components/Dashboard'
+import ActionFeedback from './components/ActionFeedback'
 import './index.css'
 
 function App() {
@@ -12,6 +13,7 @@ function App() {
 
   return (
     <div className="App">
+      <ActionFeedback />
       {!user ? (
         <Login onLogin={handleLogin} />
       ) : (

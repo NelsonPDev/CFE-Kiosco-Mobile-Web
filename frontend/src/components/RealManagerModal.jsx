@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../services/api';
+import ConfirmDialog from './ConfirmDialog';
 
 const emptyForm = (departments = []) => ({
   nombre: '',
@@ -15,6 +16,7 @@ const RealManagerModal = ({ onClose }) => {
   const [editingId, setEditingId] = useState(null);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [managerToDelete, setManagerToDelete] = useState(null);
 
   const loadData = async () => {
     try {
@@ -89,10 +91,6 @@ const RealManagerModal = ({ onClose }) => {
   };
 
   const handleDelete = async (manager) => {
-    if (!window.confirm(`Eliminar a ${manager.nombre || manager.rpe}? Esta acción no se puede deshacer.`)) {
-      return;
-    }
-
     try {
       await api.delete(`/api/jefes/${manager.id}`);
       if (String(editingId) === String(manager.id)) {
@@ -186,13 +184,25 @@ const RealManagerModal = ({ onClose }) => {
                   </div>
                   <div className="manager-list-actions">
                     <button className="password-reset-button" type="button" onClick={() => handleEdit(manager)}>Editar</button>
-                    <button className="catalog-delete-button" type="button" onClick={() => handleDelete(manager)}>Eliminar</button>
+                    <button className="catalog-delete-button" type="button" onClick={() => setManagerToDelete(manager)}>Eliminar</button>
                   </div>
                 </li>
               ))}
             </ul>
           )}
         </div>
+        {managerToDelete && (
+          <ConfirmDialog
+            title="Eliminar jefe"
+            message={`Se eliminará a ${managerToDelete.nombre || managerToDelete.rpe}. Esta acción no se puede deshacer.`}
+            onCancel={() => setManagerToDelete(null)}
+            onConfirm={() => {
+              const manager = managerToDelete;
+              setManagerToDelete(null);
+              handleDelete(manager);
+            }}
+          />
+        )}
       </section>
     </div>
   );

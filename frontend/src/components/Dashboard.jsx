@@ -5,6 +5,8 @@ import DeviceMap from './DeviceMap';
 import DeviceSidebar from './DeviceSidebar';
 import CatalogManagerModal from './CatalogManagerModal';
 import RealManagerModal from './RealManagerModal';
+import ConfirmDialog from './ConfirmDialog';
+import DeviceHistoryPanel from './DeviceHistoryPanel';
 import { api } from '../services/api';
 
 const logo = '/logocfekioscomobile-circulo.png';
@@ -21,6 +23,8 @@ const Dashboard = ({ user, onLogout }) => {
   const [isManagerPanelOpen, setIsManagerPanelOpen] = useState(false);
   const [catalogModalMode, setCatalogModalMode] = useState(null);
   const [deviceModal, setDeviceModal] = useState(null);
+  const [deviceToDelete, setDeviceToDelete] = useState(null);
+  const [historyView, setHistoryView] = useState(null);
   useEffect(() => {
     const loadDevices = async () => {
       try {
@@ -90,6 +94,7 @@ const Dashboard = ({ user, onLogout }) => {
   const selectedVisibleDevice = filteredDevices.find(
     (device) => device.id === selectedDevice?.id,
   ) || null;
+  const mapDevices = historyView ? [historyView.device] : filteredDevices;
 
   const openDeviceModal = (device, isEditing = false) => {
     setDeviceModal({
@@ -192,6 +197,76 @@ const Dashboard = ({ user, onLogout }) => {
     }
   };
 
+  const handleDeleteDevice = async () => {
+    const device = deviceToDelete;
+    if (!device) return;
+
+    const targetId = device.databaseId ?? device.serie ?? device.imei ?? device.id ?? device.inventoryNumber ?? '';
+    if (!targetId) {
+      setDeviceModal((current) => ({
+        ...current,
+        errorMessage: 'No se encontró el identificador del teléfono para eliminarlo.',
+      }));
+      return;
+    }
+
+    try {
+      await api.delete(`/api/devices/${encodeURIComponent(targetId)}`);
+      setDevices((currentDevices) => currentDevices.filter((currentDevice) => (
+        String(currentDevice.databaseId ?? currentDevice.id) !== String(device.databaseId ?? device.id)
+      )));
+      setSelectedDevice(null);
+      setDeviceModal(null);
+      setDeviceToDelete(null);
+    } catch (error) {
+      console.error('No se pudo eliminar el dispositivo.', error.response?.data || error.message);
+      setDeviceModal((current) => ({
+        ...current,
+        errorMessage: error.response?.data?.message || 'No se pudo eliminar el teléfono.',
+      }));
+      setDeviceToDelete(null);
+    }
+  };
+
+  const openHistory = (device) => {
+    setDeviceModal(null);
+    setSelectedDevice({ ...device, selectionNonce: Date.now() });
+    setHistoryView({ device, points: null, isLoading: false, error: '' });
+  };
+
+  const loadHistory = async ({ from, to }) => {
+    if (!historyView?.device) return;
+
+    const start = new Date(from);
+    const end = new Date(to);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start >= end) {
+      setHistoryView((current) => ({ ...current, error: 'Selecciona un intervalo válido de fecha y hora.' }));
+      return;
+    }
+
+    const device = historyView.device;
+    const deviceId = device.databaseId ?? device.serie ?? device.imei ?? device.id ?? device.inventoryNumber ?? '';
+    if (!deviceId) {
+      setHistoryView((current) => ({ ...current, error: 'No se encontró el identificador del teléfono.' }));
+      return;
+    }
+
+    setHistoryView((current) => ({ ...current, isLoading: true, error: '' }));
+    try {
+      const { data } = await api.get(`/api/devices/${encodeURIComponent(deviceId)}/history`, {
+        params: { from: start.toISOString(), to: end.toISOString() },
+      });
+      setHistoryView((current) => ({ ...current, points: data.points || [], isLoading: false, error: '' }));
+    } catch (error) {
+      setHistoryView((current) => ({
+        ...current,
+        points: [],
+        isLoading: false,
+        error: error.response?.data?.message || 'No se pudo consultar el historial.',
+      }));
+    }
+  };
+
   const refreshCatalogs = async () => {
     try {
       const { data } = await api.get('/api/devices/catalogs');
@@ -275,8 +350,9 @@ const Dashboard = ({ user, onLogout }) => {
           </div>
           <div className="map-wrapper">
             <DeviceMap
-              devices={filteredDevices}
+              devices={mapDevices}
               selectedDevice={selectedDevice}
+              historyPoints={historyView?.points || []}
               onSelectDevice={selectDevice}
             />
 
@@ -292,6 +368,17 @@ const Dashboard = ({ user, onLogout }) => {
             )}
 
             <div className="map-note">Ubicación en tiempo real</div>
+
+            {historyView && (
+              <DeviceHistoryPanel
+                device={historyView.device}
+                pointCount={historyView.points === null ? null : historyView.points.length}
+                isLoading={historyView.isLoading}
+                error={historyView.error}
+                onFilter={loadHistory}
+                onClose={() => setHistoryView(null)}
+              />
+            )}
           </div>
         </section>
       </main>
@@ -309,6 +396,8 @@ const Dashboard = ({ user, onLogout }) => {
           onClose={() => setDeviceModal(null)}
           onEdit={() => setDeviceModal((current) => ({ ...current, isEditing: true, successMessage: '', errorMessage: '' }))}
           onSave={handleSaveDevice}
+          onDelete={() => setDeviceToDelete(deviceModal.device)}
+          onViewHistory={() => openHistory(deviceModal.device)}
           onCatalogChange={refreshCatalogs}
         />
       )}
@@ -324,6 +413,15 @@ const Dashboard = ({ user, onLogout }) => {
           models={deviceCatalog.models}
           onClose={() => setCatalogModalMode(null)}
           onCatalogChange={refreshCatalogs}
+        />
+      )}
+
+      {deviceToDelete && (
+        <ConfirmDialog
+          title="Eliminar teléfono"
+          message={`Se eliminará toda la información de ${deviceToDelete.inventoryNumber || deviceToDelete.serie || deviceToDelete.imei || 'este teléfono'}. Esta acción no se puede deshacer.`}
+          onCancel={() => setDeviceToDelete(null)}
+          onConfirm={handleDeleteDevice}
         />
       )}
 

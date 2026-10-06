@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../services/api';
+import ConfirmDialog from './ConfirmDialog';
 
 const CatalogManagerModal = ({ mode = 'departments', departments = [], models = [], onClose, onCatalogChange }) => {
   const isDepartmentsMode = mode === 'departments';
@@ -16,6 +17,7 @@ const CatalogManagerModal = ({ mode = 'departments', departments = [], models = 
   const [newModel, setNewModel] = useState({ marca: '', modelo: '' });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [pendingDeletion, setPendingDeletion] = useState(null);
 
   const brandOptions = useMemo(
     () => [...new Set(models.map((item) => item.marca).filter(Boolean))],
@@ -95,7 +97,7 @@ const CatalogManagerModal = ({ mode = 'departments', departments = [], models = 
 
   const handleDeleteDepartment = async () => {
     const selected = departments.find((item) => String(item.id) === String(selectedDepartmentId));
-    if (!selected || !window.confirm(`Eliminar el área "${selected.nombre}"? Esta acción no se puede deshacer.`)) return;
+    if (!selected) return;
 
     try {
       await api.delete(`/api/devices/catalogs/departments/${selected.id}`);
@@ -157,7 +159,7 @@ const CatalogManagerModal = ({ mode = 'departments', departments = [], models = 
 
   const handleDeleteBrand = async () => {
     const brand = selectedBrand.trim();
-    if (!brand || !window.confirm(`Eliminar la marca "${brand}" y todos sus modelos? Esta acción no se puede deshacer.`)) return;
+    if (!brand) return;
 
     try {
       await api.delete(`/api/devices/catalogs/brands/${encodeURIComponent(brand)}`);
@@ -226,7 +228,7 @@ const CatalogManagerModal = ({ mode = 'departments', departments = [], models = 
 
   const handleDeleteModel = async () => {
     const selected = models.find((item) => String(item.id) === String(selectedModelId));
-    if (!selected || !window.confirm(`Eliminar el modelo "${selected.modelo}"? Esta acción no se puede deshacer.`)) return;
+    if (!selected) return;
 
     try {
       await api.delete(`/api/devices/catalogs/models/${selected.id}`);
@@ -316,7 +318,11 @@ const CatalogManagerModal = ({ mode = 'departments', departments = [], models = 
           <button
             type="button"
             className="catalog-delete-button"
-            onClick={handleDeleteDepartment}
+            onClick={() => setPendingDeletion({
+              title: 'Eliminar área',
+              message: `Se eliminará el área "${departmentDraft}". Esta acción no se puede deshacer.`,
+              execute: handleDeleteDepartment,
+            })}
             disabled={!selectedDepartmentId}
           >
             Eliminar área
@@ -389,7 +395,11 @@ const CatalogManagerModal = ({ mode = 'departments', departments = [], models = 
           <button
             type="button"
             className="catalog-delete-button"
-            onClick={handleDeleteBrand}
+            onClick={() => setPendingDeletion({
+              title: 'Eliminar marca',
+              message: `Se eliminará la marca "${selectedBrand}" y todos sus modelos. Esta acción no se puede deshacer.`,
+              execute: handleDeleteBrand,
+            })}
             disabled={!selectedBrand}
           >
             Eliminar marca
@@ -508,7 +518,11 @@ const CatalogManagerModal = ({ mode = 'departments', departments = [], models = 
           <button
             type="button"
             className="catalog-delete-button"
-            onClick={handleDeleteModel}
+            onClick={() => setPendingDeletion({
+              title: 'Eliminar modelo',
+              message: `Se eliminará el modelo "${modelDraft.modelo}". Esta acción no se puede deshacer.`,
+              execute: handleDeleteModel,
+            })}
             disabled={!selectedModelId}
           >
             Eliminar modelo
@@ -575,6 +589,18 @@ const CatalogManagerModal = ({ mode = 'departments', departments = [], models = 
         <div className="edit-form-actions catalog-actions">
           <button className="btn-cfe btn-secondary" type="button" onClick={onClose}>Cerrar</button>
         </div>
+        {pendingDeletion && (
+          <ConfirmDialog
+            title={pendingDeletion.title}
+            message={pendingDeletion.message}
+            onCancel={() => setPendingDeletion(null)}
+            onConfirm={() => {
+              const { execute } = pendingDeletion;
+              setPendingDeletion(null);
+              execute();
+            }}
+          />
+        )}
       </section>
     </div>
   );

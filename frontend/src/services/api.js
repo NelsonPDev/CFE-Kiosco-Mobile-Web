@@ -8,3 +8,27 @@ export const api = axios.create({
     'Content-Type': 'application/json',
   },
 });
+
+const isDatabaseMutation = (config) => {
+  const method = String(config?.method || '').toLowerCase();
+  return ['post', 'put', 'patch', 'delete'].includes(method) && !String(config?.url || '').includes('/api/auth/login');
+};
+
+const emitFeedback = (type, message) => {
+  window.dispatchEvent(new CustomEvent('app-feedback', { detail: { type, message } }));
+};
+
+api.interceptors.response.use(
+  (response) => {
+    if (isDatabaseMutation(response.config)) {
+      emitFeedback('success', response.data?.message || 'Los cambios se guardaron correctamente en la base de datos.');
+    }
+    return response;
+  },
+  (error) => {
+    if (isDatabaseMutation(error.config)) {
+      emitFeedback('error', error.response?.data?.message || 'Revisa tu conexión e inténtalo de nuevo.');
+    }
+    return Promise.reject(error);
+  },
+);
