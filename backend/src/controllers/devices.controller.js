@@ -1,5 +1,10 @@
 const { supabase } = require('../config/supabase');
-const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
+
+const hashKioskPassword = (password) => crypto
+  .createHash('sha256')
+  .update(password, 'utf8')
+  .digest('hex');
 
 const normalizeStatus = (status) => {
   if (!status) return 'En línea';
@@ -612,7 +617,7 @@ const updateDevice = async (req, res) => {
       if (adminPassword.length < 6) {
         return res.status(400).json({ message: 'La contraseña del modo kiosco debe tener al menos 6 caracteres.' });
       }
-      updates.admin_password_hash = await bcrypt.hash(adminPassword, 12);
+      updates.admin_password_hash = await hashKioskPassword(adminPassword);
     }
 
     if (payload.departmentId !== undefined || payload.departamento_id !== undefined || payload.location !== undefined) {
