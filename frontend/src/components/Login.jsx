@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { api } from '../services/api';
+import { api, setAuthToken } from '../services/api';
 import './Login.css';
 
 const logo = '/logocfekioscomobile-circulo.png';
@@ -27,11 +27,12 @@ const Login = ({ onLogin }) => {
         password,
       });
 
+      setAuthToken(data.token);
       onLogin({
         username: data.user?.username || username.trim(),
         role: data.user?.role || 'admin',
         nombre: data.user?.nombre || username.trim(),
-        area: data.user?.area || null,
+        areas: data.user?.departamentos || (data.user?.departamento ? [data.user.departamento] : []),
       });
     } catch (requestError) {
       setError(requestError?.response?.data?.message || 'Usuario o contraseña incorrectos.');

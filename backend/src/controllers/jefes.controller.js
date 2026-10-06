@@ -1,5 +1,6 @@
 const { supabase } = require('../config/supabase');
 const bcrypt = require('bcryptjs');
+const { normalizeDepartments, serializeDepartments } = require('../utils/departments');
 
 const normalizeText = (value) => String(value ?? '').trim();
 const isUuid = (value) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value ?? ''));
@@ -49,7 +50,11 @@ const getJefes = async (_req, res) => {
     return res.status(500).json({ message: 'No se pudieron consultar los jefes.', details: error.message });
   }
 
-  return res.json({ managers: data || [] });
+  const managers = (data || []).map((manager) => ({
+    ...manager,
+    departamentos: normalizeDepartments(manager.departamento),
+  }));
+  return res.json({ managers });
 };
 
 const createJefe = async (req, res) => {
@@ -60,10 +65,10 @@ const createJefe = async (req, res) => {
   const nombre = normalizeText(req.body?.nombre);
   const rpe = normalizeText(req.body?.rpe);
   const password = String(req.body?.password ?? '');
-  const departamento = normalizeText(req.body?.departamento);
+  const departamentos = normalizeDepartments(req.body?.departamentos ?? req.body?.departamento);
 
-  if (!nombre || !rpe || !password || !departamento) {
-    return res.status(400).json({ message: 'Nombre, RPE, contraseña y departamento son obligatorios.' });
+  if (!nombre || !rpe || !password || !departamentos.length) {
+    return res.status(400).json({ message: 'Nombre, RPE, contraseña y al menos un área son obligatorios.' });
   }
 
   if (password.length < 6) {
@@ -83,7 +88,7 @@ const createJefe = async (req, res) => {
     const passwordHash = await bcrypt.hash(password, 12);
     const { data, error } = await supabase
       .from('jefes')
-      .insert([{ nombre, rpe, password: passwordHash, departamento }])
+      .insert([{ nombre, rpe, password: passwordHash, departamento: serializeDepartments(departamentos) }])
       .select();
 
     if (error) {
@@ -105,11 +110,11 @@ const updateJefe = async (req, res) => {
   const id = req.params.id;
   const nombre = normalizeText(req.body?.nombre);
   const rpe = normalizeText(req.body?.rpe);
-  const departamento = normalizeText(req.body?.departamento);
+  const departamentos = normalizeDepartments(req.body?.departamentos ?? req.body?.departamento);
   const password = String(req.body?.password ?? '');
 
-  if (!id || !nombre || !rpe || !departamento) {
-    return res.status(400).json({ message: 'Nombre, RPE y departamento son obligatorios.' });
+  if (!id || !nombre || !rpe || !departamentos.length) {
+    return res.status(400).json({ message: 'Nombre, RPE y al menos un área son obligatorios.' });
   }
 
   if (!isUuid(id)) {
@@ -130,7 +135,7 @@ const updateJefe = async (req, res) => {
       return res.status(409).json({ message: 'Ya existe un jefe con ese RPE.' });
     }
 
-    const updates = { nombre, rpe, departamento };
+    const updates = { nombre, rpe, departamento: serializeDepartments(departamentos) };
     if (password) {
       updates.password = await bcrypt.hash(password, 12);
     }

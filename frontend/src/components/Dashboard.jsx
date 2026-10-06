@@ -50,6 +50,7 @@ const Dashboard = ({ user, onLogout }) => {
   }, []);
 
   const isAdmin = user.role === 'admin';
+  const permittedAreas = useMemo(() => new Set(user.areas || []), [user.areas]);
   const availableAreas = useMemo(
     () => Array.from(new Set(devices.map((device) => device.location).filter(Boolean))).sort(),
     [devices],
@@ -59,6 +60,7 @@ const Dashboard = ({ user, onLogout }) => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
 
     return devices.filter((device) => {
+      if (!isAdmin && !permittedAreas.has(device.location)) return false;
       const searchableValues = [
         device.name,
         device.id,
@@ -80,7 +82,7 @@ const Dashboard = ({ user, onLogout }) => {
 
       return matchesSearch && matchesStatus && matchesArea;
     });
-  }, [devices, searchTerm, statusFilter, areaFilter]);
+  }, [devices, searchTerm, statusFilter, areaFilter, isAdmin, permittedAreas]);
 
   const selectDevice = (device) => {
     if (!device) {
@@ -300,7 +302,7 @@ const Dashboard = ({ user, onLogout }) => {
           {isAdmin && (
             <div className="header-admin-actions">
               <button className="header-action-button" type="button" onClick={() => setIsManagerPanelOpen(true)}>
-                Crear jefe
+                Jefe
               </button>
               <button className="header-action-button" type="button" onClick={() => setCatalogModalMode('departments')}>
                 Áreas

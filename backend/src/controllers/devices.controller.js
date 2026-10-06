@@ -108,6 +108,13 @@ const formatDeviceRow = (row, departamentosMap, modelosMap) => {
   };
 };
 
+const canAccessDevice = (device, user, departamentosMap) => {
+  if (user?.role === 'admin') return true;
+  const allowedDepartments = Array.isArray(user?.departamentos) ? user.departamentos : [];
+  const deviceDepartment = departamentosMap[device.departamento_id] ?? device.location;
+  return allowedDepartments.includes(deviceDepartment);
+};
+
 const getDevices = async (_req, res) => {
   if (!supabase) {
     return res.status(503).json({
@@ -147,7 +154,9 @@ const getDevices = async (_req, res) => {
       safeModelos.map((item) => [item.id, item]),
     );
 
-    const devices = safeKiosks.map((row) => formatDeviceRow(row, departamentosMap, modelosMap));
+    const devices = safeKiosks
+      .map((row) => formatDeviceRow(row, departamentosMap, modelosMap))
+      .filter((device) => canAccessDevice(device, req.user, departamentosMap));
     return res.json({ devices });
   } catch (error) {
     console.error('Error consultando dispositivos de Supabase:', error.message);
@@ -736,7 +745,7 @@ const getDeviceHistory = async (req, res) => {
   try {
     const serieMatch = await supabase
       .from('kioscos')
-      .select('serie, asset_tag')
+      .select('serie, asset_tag, departamento_id')
       .eq('serie', deviceId)
       .limit(1);
 
@@ -748,7 +757,7 @@ const getDeviceHistory = async (req, res) => {
     if (!device) {
       const inventoryMatch = await supabase
         .from('kioscos')
-        .select('serie, asset_tag')
+        .select('serie, asset_tag, departamento_id')
         .eq('asset_tag', deviceId)
         .limit(1);
 
@@ -761,6 +770,21 @@ const getDeviceHistory = async (req, res) => {
 
     if (!device?.serie) {
       return res.status(404).json({ message: 'No se encontró el dispositivo.' });
+    }
+
+    if (req.user?.role !== 'admin') {
+      const { data: departments, error: departmentsError } = await supabase
+        .from('cat_departamentos')
+        .select('id, nombre');
+
+      if (departmentsError) {
+        return res.status(500).json({ message: 'No se pudo validar el área del dispositivo.', details: departmentsError.message });
+      }
+
+      const departmentsMap = Object.fromEntries((departments || []).map((department) => [department.id, department.nombre]));
+      if (!canAccessDevice(device, req.user, departmentsMap)) {
+        return res.status(403).json({ message: 'No tienes acceso al historial de este teléfono.' });
+      }
     }
 
     const { data, error } = await supabase

@@ -1,5 +1,7 @@
 const bcrypt = require('bcryptjs');
 const { supabase } = require('../config/supabase');
+const { createSessionToken } = require('../middleware/auth.middleware');
+const { normalizeDepartments } = require('../utils/departments');
 
 const parseStoredPassword = (user) => user?.password_hash || user?.password || user?.pass || user?.contrasena || null;
 
@@ -67,15 +69,17 @@ const login = async (req, res) => {
       return res.status(401).json({ message: 'Usuario o contraseña incorrectos.' });
     }
 
+    const departments = normalizeDepartments(user.departamento || user.area || user.departamentos || user.departamento_id);
     const normalizedUser = {
       id: user.id,
       username: user.username || user.rpe || user.user_name || user.nombre || user.email,
       role: user.role || user.rol || user.role_name || 'jefe',
       nombre: user.nombre || user.name || user.username || user.rpe,
-      departamento: user.departamento || user.area || user.departamento_id || null,
+      departamento: departments[0] || null,
+      departamentos: departments,
     };
 
-    return res.json({ user: normalizedUser });
+    return res.json({ user: normalizedUser, token: createSessionToken(normalizedUser) });
   } catch (error) {
     console.error('Error al autenticar usuario:', error.message);
     return res.status(500).json({ message: 'No fue posible iniciar sesión.' });

@@ -2,6 +2,7 @@
 import Login from './components/Login'
 import Dashboard from './components/Dashboard'
 import ActionFeedback from './components/ActionFeedback'
+import { setAuthToken } from './services/api'
 import './index.css'
 
 function App() {
@@ -19,7 +20,10 @@ function App() {
       ) : (
         <Dashboard
           user={user}
-          onLogout={() => setUser(null)}
+          onLogout={() => {
+            setAuthToken(null);
+            setUser(null);
+          }}
         />
       )}
     </div>

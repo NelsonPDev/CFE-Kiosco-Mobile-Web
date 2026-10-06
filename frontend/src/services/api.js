@@ -9,6 +9,14 @@ export const api = axios.create({
   },
 });
 
+export const setAuthToken = (token) => {
+  if (token) {
+    api.defaults.headers.common.Authorization = `Bearer ${token}`;
+  } else {
+    delete api.defaults.headers.common.Authorization;
+  }
+};
+
 const isDatabaseMutation = (config) => {
   const method = String(config?.method || '').toLowerCase();
   return ['post', 'put', 'patch', 'delete'].includes(method) && !String(config?.url || '').includes('/api/auth/login');

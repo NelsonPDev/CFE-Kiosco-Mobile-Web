@@ -6,16 +6,18 @@ const emptyForm = (departments = []) => ({
   nombre: '',
   rpe: '',
   password: '',
-  departamento: departments[0]?.nombre || '',
+  departamentos: departments.length ? [departments[0].nombre] : [],
 });
 
 const RealManagerModal = ({ onClose }) => {
+  const [activeTab, setActiveTab] = useState('create');
   const [form, setForm] = useState(emptyForm());
   const [departamentos, setDepartamentos] = useState([]);
   const [managers, setManagers] = useState([]);
   const [editingId, setEditingId] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [departmentFilter, setDepartmentFilter] = useState('all');
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
   const [managerToDelete, setManagerToDelete] = useState(null);
 
   const loadData = async () => {
@@ -24,8 +26,7 @@ const RealManagerModal = ({ onClose }) => {
         api.get('/api/jefes/departamentos'),
         api.get('/api/jefes'),
       ]);
-      const nextDepartments = departmentsResponse.data.departments || [];
-      setDepartamentos(nextDepartments);
+      setDepartamentos(departmentsResponse.data.departments || []);
       setManagers(managersResponse.data.managers || []);
     } catch (err) {
       setError(err?.response?.data?.message || 'No se pudieron cargar los jefes.');
@@ -41,24 +42,56 @@ const RealManagerModal = ({ onClose }) => {
     setForm(emptyForm(departamentos));
   };
 
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    setError('');
+    if (tab === 'create') resetForm();
+  };
+
   const handleEdit = (manager) => {
+    setActiveTab('manage');
     setEditingId(manager.id);
     setForm({
       nombre: manager.nombre || '',
       rpe: manager.rpe || '',
       password: '',
-      departamento: manager.departamento || departamentos[0]?.nombre || '',
+      departamentos: manager.departamentos?.length
+        ? manager.departamentos
+        : (manager.departamento ? [manager.departamento] : []),
     });
     setError('');
-    setSuccess('');
   };
+
+  const selectedManager = managers.find((item) => String(item.id) === String(editingId));
+
+  const isFormValidAndChanged = useMemo(() => {
+    if (!form.nombre.trim() || !form.rpe.trim() || !form.departamentos.length) return false;
+    if (!editingId) return Boolean(form.password && form.password.length >= 6);
+    if (form.password && form.password.length < 6) return false;
+
+    return form.nombre.trim() !== (selectedManager?.nombre || '').trim()
+      || form.rpe.trim() !== (selectedManager?.rpe || '').trim()
+      || form.departamentos.join('|') !== (selectedManager?.departamentos || [selectedManager?.departamento]).filter(Boolean).join('|')
+      || Boolean(form.password && form.password.length >= 6);
+  }, [form, editingId, selectedManager]);
+
+  const filteredManagers = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase();
+    return managers.filter((manager) => {
+      const managerDepartments = manager.departamentos || [manager.departamento];
+      const matchesQuery = !query || [manager.nombre, manager.rpe, ...managerDepartments]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(query));
+      const matchesDepartment = departmentFilter === 'all' || managerDepartments.includes(departmentFilter);
+      return matchesQuery && matchesDepartment;
+    });
+  }, [managers, searchTerm, departmentFilter]);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
     setError('');
-    setSuccess('');
 
-    if (!form.nombre.trim() || !form.rpe.trim() || !form.departamento || (!editingId && !form.password)) {
+    if (!form.nombre.trim() || !form.rpe.trim() || !form.departamentos.length || (!editingId && !form.password)) {
       setError('Completa todos los campos obligatorios.');
       return;
     }
@@ -71,20 +104,20 @@ const RealManagerModal = ({ onClose }) => {
     const payload = {
       nombre: form.nombre.trim(),
       rpe: form.rpe.trim(),
-      departamento: form.departamento,
+      departamentos: form.departamentos,
       ...(form.password ? { password: form.password } : {}),
     };
 
     try {
       if (editingId) {
         await api.put(`/api/jefes/${editingId}`, payload);
-        setSuccess('Jefe actualizado correctamente.');
       } else {
         await api.post('/api/jefes', payload);
-        setSuccess('Jefe creado correctamente.');
       }
+      const wasEditing = Boolean(editingId);
       resetForm();
       await loadData();
+      setActiveTab(wasEditing ? 'manage' : 'create');
     } catch (err) {
       setError(err?.response?.data?.message || 'No se pudo guardar el jefe.');
     }
@@ -93,104 +126,111 @@ const RealManagerModal = ({ onClose }) => {
   const handleDelete = async (manager) => {
     try {
       await api.delete(`/api/jefes/${manager.id}`);
-      if (String(editingId) === String(manager.id)) {
-        resetForm();
-      }
-      setError('');
-      setSuccess('Jefe eliminado correctamente.');
+      if (String(editingId) === String(manager.id)) resetForm();
       await loadData();
     } catch (err) {
-      setSuccess('');
       setError(err?.response?.data?.message || 'No se pudo eliminar el jefe.');
     }
   };
 
-  const selectedManager = managers.find((item) => String(item.id) === String(editingId));
-
-  const isFormValidAndChanged = useMemo(() => {
-    if (!form.nombre.trim() || !form.rpe.trim() || !form.departamento) {
-      return false;
-    }
-
-    if (!editingId) {
-      return Boolean(form.password && form.password.length >= 6);
-    }
-
-    if (form.password && form.password.length < 6) {
-      return false;
-    }
-
-    const nameChanged = form.nombre.trim() !== (selectedManager?.nombre || '').trim();
-    const rpeChanged = form.rpe.trim() !== (selectedManager?.rpe || '').trim();
-    const deptChanged = form.departamento !== (selectedManager?.departamento || '');
-    const passTyped = Boolean(form.password && form.password.length >= 6);
-
-    return nameChanged || rpeChanged || deptChanged || passTyped;
-  }, [form, editingId, selectedManager]);
+  const renderForm = (editing = false) => (
+    <form className="manager-form" onSubmit={handleSubmit}>
+      <h3>{editing ? 'Editar jefe' : 'Nuevo jefe'}</h3>
+      <label>Nombre completo
+        <input type="text" value={form.nombre} onChange={(event) => setForm((current) => ({ ...current, nombre: event.target.value }))} required />
+      </label>
+      <label>RPE del jefe
+        <input type="text" value={form.rpe} onChange={(event) => setForm((current) => ({ ...current, rpe: event.target.value }))} required />
+      </label>
+      <label>{editing ? 'Nueva contraseña (opcional)' : 'Contraseña inicial'}
+        <input type="password" value={form.password} onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))} minLength="6" required={!editing} />
+      </label>
+      <fieldset className="manager-department-selector">
+        <legend>Áreas asignadas</legend>
+        <div className="manager-department-options">
+          {departamentos.map((department) => (
+            <label key={department.id}>
+              <input
+                type="checkbox"
+                checked={form.departamentos.includes(department.nombre)}
+                onChange={(event) => setForm((current) => ({
+                  ...current,
+                  departamentos: event.target.checked
+                    ? [...current.departamentos, department.nombre]
+                    : current.departamentos.filter((name) => name !== department.nombre),
+                }))}
+              />
+              <span>{department.nombre}</span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
+      {error && <p className="login-error" role="alert">{error}</p>}
+      <div className="edit-form-actions">
+        {editing && <button className="btn-cfe btn-secondary" type="button" onClick={resetForm}>Cancelar edición</button>}
+        <button className="btn-cfe" type="submit" disabled={!isFormValidAndChanged}>{editing ? 'Guardar cambios' : 'Crear jefe'}</button>
+      </div>
+    </form>
+  );
 
   return (
     <div className="manager-modal-backdrop" role="presentation">
       <section className="manager-modal manager-directory-modal" role="dialog" aria-modal="true" aria-labelledby="manager-modal-title">
         <div className="manager-modal-header">
-          <div>
-            <h2 id="manager-modal-title">Administrar jefes</h2>
-          </div>
+          <div><h2 id="manager-modal-title">Jefes</h2></div>
           <button className="modal-close" type="button" onClick={onClose} aria-label="Cerrar administración de jefes">×</button>
         </div>
 
-        <form className="manager-form" onSubmit={handleSubmit}>
-          <h3>{editingId ? 'Editar jefe' : 'Nuevo jefe'}</h3>
-          <label>Nombre completo
-            <input type="text" value={form.nombre} onChange={(event) => setForm((current) => ({ ...current, nombre: event.target.value }))} required />
-          </label>
-
-          <label>RPE del jefe
-            <input type="text" value={form.rpe} onChange={(event) => setForm((current) => ({ ...current, rpe: event.target.value }))} required />
-          </label>
-
-          <label>{editingId ? 'Nueva contraseña (opcional)' : 'Contraseña inicial'}
-            <input type="password" value={form.password} onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))} minLength="6" required={!editingId} />
-          </label>
-
-          <label>Área
-            <select value={form.departamento} onChange={(event) => setForm((current) => ({ ...current, departamento: event.target.value }))} required>
-              <option value="">Selecciona un área</option>
-              {departamentos.map((departamento) => (
-                <option key={departamento.id} value={departamento.nombre}>{departamento.nombre}</option>
-              ))}
-            </select>
-          </label>
-
-          {error && <p className="login-error" role="alert">{error}</p>}
-          {success && <p className="login-success" role="status">{success}</p>}
-
-          <div className="edit-form-actions">
-            {editingId && <button className="btn-cfe btn-secondary" type="button" onClick={resetForm}>Cancelar edición</button>}
-            <button className="btn-cfe" type="submit" disabled={!isFormValidAndChanged}>{editingId ? 'Guardar cambios' : 'Guardar jefe'}</button>
-          </div>
-        </form>
-
-        <div className="manager-directory" aria-label="Jefes registrados">
-          <h3>Jefes registrados</h3>
-          {managers.length === 0 ? (
-            <p className="manager-empty-state">No hay jefes registrados.</p>
-          ) : (
-            <ul className="manager-list">
-              {managers.map((manager) => (
-                <li key={manager.id}>
-                  <div>
-                    <strong>{manager.nombre || manager.rpe}</strong>
-                    <span>{manager.rpe} · {manager.departamento || 'Sin área'}</span>
-                  </div>
-                  <div className="manager-list-actions">
-                    <button className="password-reset-button" type="button" onClick={() => handleEdit(manager)}>Editar</button>
-                    <button className="catalog-delete-button" type="button" onClick={() => setManagerToDelete(manager)}>Eliminar</button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
+        <div className="section-switcher manager-tabs" role="tablist" aria-label="Opciones de jefes">
+          <button type="button" className={`section-tab ${activeTab === 'create' ? 'active' : ''}`} onClick={() => handleTabChange('create')}>Jefe</button>
+          <button type="button" className={`section-tab ${activeTab === 'manage' ? 'active' : ''}`} onClick={() => handleTabChange('manage')}>Administrar jefes</button>
         </div>
+
+        {activeTab === 'create' ? renderForm(false) : (
+          <div className="manager-workspace">
+            {editingId ? renderForm(true) : (
+              <>
+                <div className="manager-filter-bar">
+                  <label className="manager-search-field">
+                    Buscar
+                    <input type="search" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="Nombre, RPE o área" />
+                  </label>
+                  <label className="manager-area-filter">
+                    Área
+                    <select value={departmentFilter} onChange={(event) => setDepartmentFilter(event.target.value)}>
+                      <option value="all">Todas las áreas</option>
+                      {departamentos.map((department) => <option key={department.id} value={department.nombre}>{department.nombre}</option>)}
+                    </select>
+                  </label>
+                </div>
+
+                {error && <p className="login-error" role="alert">{error}</p>}
+                <div className="manager-directory" aria-label="Jefes registrados">
+                  <div className="manager-directory-heading">
+                    <h3>Jefes registrados</h3>
+                    <span>{filteredManagers.length} de {managers.length}</span>
+                  </div>
+                  {filteredManagers.length === 0 ? (
+                    <p className="manager-empty-state">No se encontraron jefes con esos filtros.</p>
+                  ) : (
+                    <ul className="manager-list">
+                      {filteredManagers.map((manager) => (
+                        <li key={manager.id}>
+                          <div><strong>{manager.nombre || manager.rpe}</strong><span>{manager.rpe} · {(manager.departamentos || [manager.departamento]).filter(Boolean).join(', ') || 'Sin área'}</span></div>
+                          <div className="manager-list-actions">
+                            <button className="password-reset-button" type="button" onClick={() => handleEdit(manager)}>Editar</button>
+                            <button className="catalog-delete-button" type="button" onClick={() => setManagerToDelete(manager)}>Eliminar</button>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
         {managerToDelete && (
           <ConfirmDialog
             title="Eliminar jefe"
