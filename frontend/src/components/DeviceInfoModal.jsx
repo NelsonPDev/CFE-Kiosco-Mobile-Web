@@ -1,4 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
+import PasswordInputWithRules from './PasswordInputWithRules';
+import {
+  sanitizeRpe,
+  validateRpe,
+  sanitizeNombre,
+  validateNombre,
+  sanitizePuesto,
+  sanitizeInventario,
+  validateInventario,
+  sanitizeSerie,
+  validateSerie,
+  sanitizePhone,
+  validatePhone,
+  getPasswordRequirements,
+} from '../utils/validation';
 
 const DeviceInfoModal = ({
   device,
@@ -34,15 +49,29 @@ const DeviceInfoModal = ({
     }
   }, [isEditing, device, initialDeviceState]);
 
+  const isWorkerFormValid = useMemo(() => {
+    return validateRpe(device.workerRpe) && validateNombre(device.workerName);
+  }, [device.workerRpe, device.workerName]);
+
+  const isDeviceFormValid = useMemo(() => {
+    const invValid = !device.inventoryNumber || validateInventario(device.inventoryNumber);
+    return invValid && validateSerie(device.serie || device.imei) && validatePhone(device.phoneNumber);
+  }, [device.inventoryNumber, device.serie, device.imei, device.phoneNumber]);
+
+  const isPasswordFormValid = useMemo(() => {
+    const pass = device.adminPassword || '';
+    const confirm = device.confirmAdminPassword || '';
+    return getPasswordRequirements(pass).isValid && pass === confirm;
+  }, [device.adminPassword, device.confirmAdminPassword]);
+
   const isWorkerFormChanged = useMemo(() => {
     if (!initialDeviceState || selectedTab !== 'worker') return false;
     const rpeChanged = (device.workerRpe || '').trim() !== (initialDeviceState.workerRpe || '').trim();
     const nameChanged = (device.workerName || '').trim() !== (initialDeviceState.workerName || '').trim();
     const locationChanged = (device.location || '').trim() !== (initialDeviceState.location || '').trim();
     const roleChanged = (device.role ?? device.puesto ?? '').trim() !== (initialDeviceState.role ?? initialDeviceState.puesto ?? '').trim();
-    const hasValidFields = Boolean((device.workerRpe || '').trim() && (device.workerName || '').trim());
-    return hasValidFields && (rpeChanged || nameChanged || locationChanged || roleChanged);
-  }, [device, initialDeviceState, selectedTab]);
+    return isWorkerFormValid && (rpeChanged || nameChanged || locationChanged || roleChanged);
+  }, [device, initialDeviceState, selectedTab, isWorkerFormValid]);
 
   const isDeviceFormChanged = useMemo(() => {
     if (!initialDeviceState || selectedTab !== 'device') return false;
@@ -51,22 +80,14 @@ const DeviceInfoModal = ({
     const brandChanged = (device.brand || '').trim() !== (initialDeviceState.brand || '').trim();
     const modelChanged = (device.model || '').trim() !== (initialDeviceState.model || '').trim();
     const phoneChanged = (device.phoneNumber || '').trim() !== (initialDeviceState.phoneNumber || '').trim();
-    const hasValidFields = Boolean((device.serie || device.imei || '').trim() && (device.phoneNumber || '').trim());
-    return hasValidFields && (invChanged || serieChanged || brandChanged || modelChanged || phoneChanged);
-  }, [device, initialDeviceState, selectedTab]);
-
-  const isPasswordFormChanged = useMemo(() => {
-    if (selectedTab !== 'password') return false;
-    const pass = device.adminPassword || '';
-    const confirm = device.confirmAdminPassword || '';
-    return pass.length >= 6 && pass === confirm;
-  }, [device, selectedTab]);
+    return isDeviceFormValid && (invChanged || serieChanged || brandChanged || modelChanged || phoneChanged);
+  }, [device, initialDeviceState, selectedTab, isDeviceFormValid]);
 
   const isSaveDisabled = selectedTab === 'worker'
     ? !isWorkerFormChanged
     : selectedTab === 'device'
       ? !isDeviceFormChanged
-      : !isPasswordFormChanged;
+      : !isPasswordFormValid;
 
   const updateField = (field, value) => {
     if (field === 'brand') {
@@ -76,14 +97,22 @@ const DeviceInfoModal = ({
       return;
     }
 
-    onChange({ ...device, [field]: value });
+    let sanitizedValue = value;
+    if (field === 'workerRpe') sanitizedValue = sanitizeRpe(value);
+    if (field === 'workerName') sanitizedValue = sanitizeNombre(value);
+    if (field === 'inventoryNumber') sanitizedValue = sanitizeInventario(value);
+    if (field === 'serie') sanitizedValue = sanitizeSerie(value);
+    if (field === 'phoneNumber') sanitizedValue = sanitizePhone(value);
+
+    onChange({ ...device, [field]: sanitizedValue });
   };
 
   const handleRoleChange = (nextValue) => {
+    const sanitized = sanitizePuesto(nextValue);
     onChange({
       ...device,
-      role: nextValue,
-      puesto: nextValue,
+      role: sanitized,
+      puesto: sanitized,
     });
   };
 
@@ -94,11 +123,23 @@ const DeviceInfoModal = ({
           <h3>Editar Trabajador</h3>
           <label>
             RPE
-            <input type="text" value={device.workerRpe || ''} onChange={(event) => updateField('workerRpe', event.target.value)} required />
+            <input
+              type="text"
+              value={device.workerRpe || ''}
+              onChange={(event) => updateField('workerRpe', event.target.value)}
+              maxLength={5}
+              required
+            />
           </label>
           <label>
             Nombre completo
-            <input type="text" value={device.workerName || ''} onChange={(event) => updateField('workerName', event.target.value)} required />
+            <input
+              type="text"
+              value={device.workerName || ''}
+              onChange={(event) => updateField('workerName', event.target.value)}
+              maxLength={70}
+              required
+            />
           </label>
           <label>
             Área
@@ -114,9 +155,9 @@ const DeviceInfoModal = ({
               type="text"
               value={device.role ?? device.puesto ?? ''}
               onChange={(event) => handleRoleChange(event.target.value)}
+              maxLength={60}
             />
           </label>
-
         </div>
       );
     }
@@ -126,12 +167,23 @@ const DeviceInfoModal = ({
         <div className="edit-section-card">
           <h3>Editar Teléfono</h3>
           <label>
-            No. Inventario
-            <input type="text" value={device.inventoryNumber ?? ''} onChange={(event) => updateField('inventoryNumber', event.target.value)} />
+            No. Inventario (8 dígitos)
+            <input
+              type="text"
+              value={device.inventoryNumber ?? ''}
+              onChange={(event) => updateField('inventoryNumber', event.target.value)}
+              maxLength={8}
+            />
           </label>
           <label>
             Serie
-            <input type="text" value={device.serie || device.imei || ''} onChange={(event) => updateField('serie', event.target.value)} required />
+            <input
+              type="text"
+              value={device.serie || device.imei || ''}
+              onChange={(event) => updateField('serie', event.target.value)}
+              maxLength={20}
+              required
+            />
           </label>
 
           <div className="device-model-row">
@@ -155,8 +207,14 @@ const DeviceInfoModal = ({
           </div>
 
           <label>
-            Número Telefónico
-            <input type="text" value={device.phoneNumber || ''} onChange={(event) => updateField('phoneNumber', event.target.value)} required />
+            Número Telefónico (10 dígitos)
+            <input
+              type="text"
+              value={device.phoneNumber || ''}
+              onChange={(event) => updateField('phoneNumber', event.target.value)}
+              maxLength={10}
+              required
+            />
           </label>
         </div>
       );
@@ -166,28 +224,15 @@ const DeviceInfoModal = ({
       return (
         <div className="edit-section-card">
           <h3>Contraseña de administrador</h3>
-          <label>
-            Nueva contraseña
-            <input
-              type="password"
-              value={device.adminPassword || ''}
-              onChange={(event) => updateField('adminPassword', event.target.value)}
-              autoComplete="new-password"
-              minLength="6"
-              required
-            />
-          </label>
-          <label>
-            Confirmar contraseña
-            <input
-              type="password"
-              value={device.confirmAdminPassword || ''}
-              onChange={(event) => updateField('confirmAdminPassword', event.target.value)}
-              autoComplete="new-password"
-              minLength="6"
-              required
-            />
-          </label>
+          <PasswordInputWithRules
+            password={device.adminPassword || ''}
+            confirmPassword={device.confirmAdminPassword || ''}
+            onPasswordChange={(val) => updateField('adminPassword', val)}
+            onConfirmPasswordChange={(val) => updateField('confirmAdminPassword', val)}
+            showConfirm
+            passwordLabel="Nueva contraseña"
+            confirmLabel="Confirmar contraseña"
+          />
         </div>
       );
     }

@@ -50,10 +50,13 @@ const Dashboard = ({ user, onLogout }) => {
   }, []);
 
   const isAdmin = user.role === 'admin';
-  const permittedAreas = useMemo(() => new Set(user.areas || []), [user.areas]);
+  const permittedAreas = useMemo(
+    () => new Set(user.departamentos || user.areas || (user.departamento ? [user.departamento] : [])),
+    [user.departamentos, user.areas, user.departamento],
+  );
   const availableAreas = useMemo(
-    () => Array.from(new Set(devices.map((device) => device.location).filter(Boolean))).sort(),
-    [devices],
+    () => Array.from(new Set(devices.map((device) => device.location).filter((loc) => loc && (isAdmin || permittedAreas.has(loc))))).sort(),
+    [devices, isAdmin, permittedAreas],
   );
 
   const filteredDevices = useMemo(() => {

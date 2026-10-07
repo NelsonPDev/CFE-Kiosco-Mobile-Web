@@ -110,12 +110,14 @@ const formatDeviceRow = (row, departamentosMap, modelosMap) => {
 
 const canAccessDevice = (device, user, departamentosMap) => {
   if (user?.role === 'admin') return true;
-  const allowedDepartments = Array.isArray(user?.departamentos) ? user.departamentos : [];
+  const allowedDepartments = Array.isArray(user?.departamentos)
+    ? user.departamentos
+    : (Array.isArray(user?.areas) ? user.areas : (user?.departamento ? [user.departamento] : []));
   const deviceDepartment = departamentosMap[device.departamento_id] ?? device.location;
   return allowedDepartments.includes(deviceDepartment);
 };
 
-const getDevices = async (_req, res) => {
+const getDevices = async (req, res) => {
   if (!supabase) {
     return res.status(503).json({
       message: 'Falta la configuración de Supabase. Agrega SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY.',

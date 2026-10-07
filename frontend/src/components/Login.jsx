@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { api, setAuthToken } from '../services/api';
+import { sanitizeRpe } from '../utils/validation';
 import './Login.css';
 
 const logo = '/logocfekioscomobile-circulo.png';
@@ -55,7 +56,8 @@ const Login = ({ onLogin }) => {
             <input 
               type="text" 
               value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              onChange={(e) => setUsername(sanitizeRpe(e.target.value))}
+              maxLength={5}
               placeholder=""
               required
             />

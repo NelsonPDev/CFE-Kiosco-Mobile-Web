@@ -1,6 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../services/api';
 import ConfirmDialog from './ConfirmDialog';
+import PasswordInputWithRules from './PasswordInputWithRules';
+import {
+  sanitizeRpe,
+  sanitizeNombre,
+  validateRpe,
+  validateNombre,
+  getPasswordRequirements,
+} from '../utils/validation';
 
 const emptyForm = (departments = []) => ({
   nombre: '',
@@ -65,14 +73,16 @@ const RealManagerModal = ({ onClose }) => {
   const selectedManager = managers.find((item) => String(item.id) === String(editingId));
 
   const isFormValidAndChanged = useMemo(() => {
-    if (!form.nombre.trim() || !form.rpe.trim() || !form.departamentos.length) return false;
-    if (!editingId) return Boolean(form.password && form.password.length >= 6);
-    if (form.password && form.password.length < 6) return false;
+    if (!validateNombre(form.nombre) || !validateRpe(form.rpe) || !form.departamentos.length) return false;
+
+    const passReqs = getPasswordRequirements(form.password);
+    if (!editingId) return passReqs.isValid;
+    if (form.password && !passReqs.isValid) return false;
 
     return form.nombre.trim() !== (selectedManager?.nombre || '').trim()
       || form.rpe.trim() !== (selectedManager?.rpe || '').trim()
       || form.departamentos.join('|') !== (selectedManager?.departamentos || [selectedManager?.departamento]).filter(Boolean).join('|')
-      || Boolean(form.password && form.password.length >= 6);
+      || Boolean(form.password && passReqs.isValid);
   }, [form, editingId, selectedManager]);
 
   const filteredManagers = useMemo(() => {
@@ -91,13 +101,28 @@ const RealManagerModal = ({ onClose }) => {
     event.preventDefault();
     setError('');
 
-    if (!form.nombre.trim() || !form.rpe.trim() || !form.departamentos.length || (!editingId && !form.password)) {
-      setError('Completa todos los campos obligatorios.');
+    if (!validateNombre(form.nombre)) {
+      setError('El nombre completo solo debe contener letras (hasta 70 caracteres).');
       return;
     }
 
-    if (form.password && form.password.length < 6) {
-      setError('La contraseña debe tener al menos 6 caracteres.');
+    if (!validateRpe(form.rpe)) {
+      setError('El RPE debe constar de exactamente 5 caracteres alfanuméricos.');
+      return;
+    }
+
+    if (!form.departamentos.length) {
+      setError('Selecciona al menos un área.');
+      return;
+    }
+
+    if (!editingId && !form.password) {
+      setError('La contraseña inicial es obligatoria.');
+      return;
+    }
+
+    if (form.password && !getPasswordRequirements(form.password).isValid) {
+      setError('La contraseña no cumple con todos los requisitos obligatorios.');
       return;
     }
 
@@ -137,14 +162,32 @@ const RealManagerModal = ({ onClose }) => {
     <form className="manager-form" onSubmit={handleSubmit}>
       <h3>{editing ? 'Editar jefe' : 'Nuevo jefe'}</h3>
       <label>Nombre completo
-        <input type="text" value={form.nombre} onChange={(event) => setForm((current) => ({ ...current, nombre: event.target.value }))} required />
+        <input
+          type="text"
+          value={form.nombre}
+          onChange={(event) => setForm((current) => ({ ...current, nombre: sanitizeNombre(event.target.value) }))}
+          maxLength={70}
+          required
+        />
       </label>
       <label>RPE del jefe
-        <input type="text" value={form.rpe} onChange={(event) => setForm((current) => ({ ...current, rpe: event.target.value }))} required />
+        <input
+          type="text"
+          value={form.rpe}
+          onChange={(event) => setForm((current) => ({ ...current, rpe: sanitizeRpe(event.target.value) }))}
+          maxLength={5}
+          required
+        />
       </label>
-      <label>{editing ? 'Nueva contraseña (opcional)' : 'Contraseña inicial'}
-        <input type="password" value={form.password} onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))} minLength="6" required={!editing} />
-      </label>
+
+      <PasswordInputWithRules
+        password={form.password}
+        onPasswordChange={(val) => setForm((current) => ({ ...current, password: val }))}
+        showConfirm={false}
+        passwordLabel={editing ? 'Nueva contraseña (opcional)' : 'Contraseña inicial'}
+        isRequired={!editing}
+      />
+
       <fieldset className="manager-department-selector">
         <legend>Áreas asignadas</legend>
         <div className="manager-department-options">
@@ -218,7 +261,7 @@ const RealManagerModal = ({ onClose }) => {
                         <li key={manager.id}>
                           <div><strong>{manager.nombre || manager.rpe}</strong><span>{manager.rpe} · {(manager.departamentos || [manager.departamento]).filter(Boolean).join(', ') || 'Sin área'}</span></div>
                           <div className="manager-list-actions">
-                            <button className="password-reset-button" type="button" onClick={() => handleEdit(manager)}>Editar</button>
+                            <button className="manager-edit-button" type="button" onClick={() => handleEdit(manager)}>Editar</button>
                             <button className="catalog-delete-button" type="button" onClick={() => setManagerToDelete(manager)}>Eliminar</button>
                           </div>
                         </li>

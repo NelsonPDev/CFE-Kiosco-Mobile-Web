@@ -1167,14 +1167,28 @@
   gap: 8px;
 }
 
+.manager-edit-button,
 .catalog-delete-button {
   padding: 0.7rem 0.9rem;
-  border: 1px solid #b52a2a;
   border-radius: 4px;
-  background-color: #fff;
-  color: #9d2020;
   cursor: pointer;
   font-weight: 700;
+}
+
+.manager-edit-button {
+  border: 1px solid var(--cfe-green-light);
+  background-color: #fff;
+  color: var(--cfe-green-dark);
+}
+
+.manager-edit-button:hover {
+  background-color: #edf4ef;
+}
+
+.catalog-delete-button {
+  border: 1px solid #b52a2a;
+  background-color: #fff;
+  color: #9d2020;
 }
 
 .catalog-delete-button:hover {
