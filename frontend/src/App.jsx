@@ -1,15 +1,29 @@
-﻿import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import Login from './components/Login'
 import Dashboard from './components/Dashboard'
 import ActionFeedback from './components/ActionFeedback'
-import { setAuthToken } from './services/api'
+import { getStoredSession, clearSession } from './services/api'
 import './index.css'
 
 function App() {
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(() => getStoredSession()?.user || null);
+
+  useEffect(() => {
+    const handleAuthLogout = () => {
+      setUser(null);
+    };
+
+    window.addEventListener('auth-logout', handleAuthLogout);
+    return () => window.removeEventListener('auth-logout', handleAuthLogout);
+  }, []);
 
   const handleLogin = (account) => {
     setUser(account);
+  };
+
+  const handleLogout = () => {
+    clearSession();
+    setUser(null);
   };
 
   return (
@@ -20,10 +34,7 @@ function App() {
       ) : (
         <Dashboard
           user={user}
-          onLogout={() => {
-            setAuthToken(null);
-            setUser(null);
-          }}
+          onLogout={handleLogout}
         />
       )}
     </div>

@@ -151,6 +151,7 @@ const DeviceMap = ({ devices, selectedDevice, historyPoints = [], onSelectDevice
   const markersLayer = useRef(null);
   const historyLayer = useRef(null);
   const hasInitialCentered = useRef(false);
+  const markersMapRef = useRef(new Map());
 
   useEffect(() => {
     const map = L.map(mapElement.current).setView(mapCenter, 12);
@@ -176,6 +177,7 @@ const DeviceMap = ({ devices, selectedDevice, historyPoints = [], onSelectDevice
       mapInstance.current = null;
       markersLayer.current = null;
       historyLayer.current = null;
+      markersMapRef.current.clear();
       clusterGroup.remove();
       map.remove();
     };
@@ -194,13 +196,13 @@ const DeviceMap = ({ devices, selectedDevice, historyPoints = [], onSelectDevice
       return;
     }
 
-    markersLayer.current.clearLayers();
+    const currentMap = markersMapRef.current;
+    const currentDeviceIds = new Set();
 
     devices.forEach((device) => {
-      const marker = L.marker(device.position, {
-        icon: createPhoneIcon(device),
-        deviceStatus: device.status,
-      });
+      const deviceId = String(device.databaseId ?? device.id ?? device.serie ?? '');
+      if (!deviceId) return;
+      currentDeviceIds.add(deviceId);
 
       const popupContent = `
         <div class="device-popup">
@@ -215,27 +217,65 @@ const DeviceMap = ({ devices, selectedDevice, historyPoints = [], onSelectDevice
         </div>
       `;
 
-      marker.bindPopup(popupContent);
-      marker.bindTooltip(`
+      const tooltipContent = `
         <div class="device-tooltip">
           <strong>${device.workerName || 'Sin asignar'}</strong>
           <span>RPE: ${device.workerRpe || 'Sin RPE'}</span>
           <span>Tel: ${device.phoneNumber || 'Sin teléfono'}</span>
         </div>
-      `, {
-        direction: 'top',
-        offset: [0, -16],
-        opacity: 1,
-        sticky: true,
-      });
+      `;
 
-      marker.on('click', () => {
-        if (onSelectDevice) {
-          onSelectDevice(device);
+      const existing = currentMap.get(deviceId);
+
+      if (existing) {
+        // Actualizar posición suavemente sin cerrar popups
+        if (Array.isArray(device.position) && device.position.length === 2) {
+          const [lat, lng] = device.position;
+          const currentLatLng = existing.marker.getLatLng();
+          if (currentLatLng.lat !== lat || currentLatLng.lng !== lng) {
+            existing.marker.setLatLng([lat, lng]);
+          }
         }
-      });
 
-      markersLayer.current.addLayer(marker);
+        existing.marker.setPopupContent(popupContent);
+        existing.marker.setTooltipContent(tooltipContent);
+
+        if (existing.status !== device.status) {
+          existing.marker.setIcon(createPhoneIcon(device));
+          existing.status = device.status;
+        }
+
+        existing.device = device;
+      } else {
+        const marker = L.marker(device.position, {
+          icon: createPhoneIcon(device),
+          deviceStatus: device.status,
+        });
+
+        marker.bindPopup(popupContent);
+        marker.bindTooltip(tooltipContent, {
+          direction: 'top',
+          offset: [0, -16],
+          opacity: 1,
+          sticky: true,
+        });
+
+        marker.on('click', () => {
+          if (onSelectDevice) {
+            onSelectDevice(device);
+          }
+        });
+
+        markersLayer.current.addLayer(marker);
+        currentMap.set(deviceId, { marker, status: device.status, device });
+      }
+    });
+
+    currentMap.forEach((entry, id) => {
+      if (!currentDeviceIds.has(id)) {
+        markersLayer.current.removeLayer(entry.marker);
+        currentMap.delete(id);
+      }
     });
   }, [devices, onSelectDevice]);
 
@@ -276,13 +316,13 @@ const DeviceMap = ({ devices, selectedDevice, historyPoints = [], onSelectDevice
   }, [historyPoints]);
 
   useEffect(() => {
-    if (mapInstance.current && selectedDevice) {
+    if (mapInstance.current && selectedDevice && selectedDevice.selectionNonce) {
       mapInstance.current.flyTo(selectedDevice.position, 15, {
         animate: true,
         duration: 0.8,
       });
     }
-  }, [selectedDevice]);
+  }, [selectedDevice?.selectionNonce]);
 
   return <div ref={mapElement} className="device-map" />;
 };

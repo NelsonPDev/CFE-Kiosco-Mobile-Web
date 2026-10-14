@@ -25,11 +25,14 @@ const Dashboard = ({ user, onLogout }) => {
   const [deviceModal, setDeviceModal] = useState(null);
   const [deviceToDelete, setDeviceToDelete] = useState(null);
   const [historyView, setHistoryView] = useState(null);
-  useEffect(() => {
-    const loadDevices = async () => {
-      try {
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const fetchDevicesData = async (isInitial = false) => {
+    try {
+      setIsRefreshing(true);
+      if (isInitial) {
         const [devicesResponse, catalogResponse] = await Promise.all([
-          api.get('/api/devices'),
+          api.get('/api/devices', { params: { _t: Date.now() } }),
           api.get('/api/devices/catalogs'),
         ]);
 
@@ -41,12 +44,42 @@ const Dashboard = ({ user, onLogout }) => {
           departments: catalogResponse.data.departments || [],
           models: catalogResponse.data.models || [],
         });
-      } catch (error) {
-        console.info('No fue posible cargar los dispositivos reales.', error.message);
-      }
-    };
+      } else {
+        const { data } = await api.get('/api/devices', { params: { _t: Date.now() } });
+        if (Array.isArray(data.devices)) {
+          const freshDevices = data.devices;
+          setDevices(freshDevices);
 
-    loadDevices();
+          setSelectedDevice((current) => {
+            if (!current) return null;
+            const updated = freshDevices.find(
+              (d) => String(d.databaseId ?? d.id) === String(current.databaseId ?? current.id)
+            );
+            return updated ? { ...updated, selectionNonce: current.selectionNonce } : current;
+          });
+
+          // Si el usuario tiene una ventana o formulario abierto, no interrumpir lo que esté haciendo
+          setDeviceModal((currentModal) => {
+            if (currentModal) return currentModal;
+            return null;
+          });
+        }
+      }
+    } catch (error) {
+      console.info('No fue posible actualizar dispositivos.', error.message);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDevicesData(true);
+
+    const intervalId = setInterval(() => {
+      fetchDevicesData(false);
+    }, 2 * 60 * 1000); // Se actualiza automáticamente cada 2 minutos en segundo plano
+
+    return () => clearInterval(intervalId);
   }, []);
 
   const isAdmin = user.role === 'admin';
@@ -351,7 +384,18 @@ const Dashboard = ({ user, onLogout }) => {
         <section className="map-section">
           <div className="map-heading">
             <div><span className="section-eyebrow">Ubicación en tiempo real</span><h2>Mapa de dispositivos</h2></div>
-            <span className="map-status"><span /> {devices.length} activo{devices.length === 1 ? '' : 's'}</span>
+            <div className="map-heading-actions">
+              <span className="map-status"><span /> {devices.length} activo{devices.length === 1 ? '' : 's'}</span>
+              <button
+                type="button"
+                className={`map-refresh-button ${isRefreshing ? 'refreshing' : ''}`}
+                onClick={() => !isRefreshing && fetchDevicesData(false)}
+                disabled={isRefreshing}
+                title="Actualizar datos del mapa y teléfonos ahora"
+              >
+                {isRefreshing ? 'Actualizando…' : 'Actualizar'}
+              </button>
+            </div>
           </div>
           <div className="map-wrapper">
             <DeviceMap

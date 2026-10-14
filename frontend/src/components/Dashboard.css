@@ -571,6 +571,40 @@
   font-weight: 700;
 }
 
+.map-heading-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.map-refresh-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 14px;
+  border: 1px solid var(--cfe-green-deep);
+  border-radius: 6px;
+  background-color: var(--cfe-green-deep);
+  color: #ffffff;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 0.15s ease, opacity 0.15s ease, transform 0.1s ease;
+}
+
+.map-refresh-button:hover:not(:disabled) {
+  background-color: #0b3d2b;
+}
+
+.map-refresh-button:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.map-refresh-button:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
 .map-wrapper {
   position: relative;
   height: calc(100vh - 180px);

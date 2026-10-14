@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { api, setAuthToken } from '../services/api';
+import { api, saveSession } from '../services/api';
 import { sanitizeRpe } from '../utils/validation';
 import './Login.css';
 
@@ -8,6 +8,7 @@ const logo = '/logocfekioscomobile-circulo.png';
 const Login = ({ onLogin }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -28,13 +29,15 @@ const Login = ({ onLogin }) => {
         password,
       });
 
-      setAuthToken(data.token);
-      onLogin({
+      const userAccount = {
         username: data.user?.username || username.trim(),
         role: data.user?.role || 'admin',
         nombre: data.user?.nombre || username.trim(),
         areas: data.user?.departamentos || (data.user?.departamento ? [data.user.departamento] : []),
-      });
+      };
+
+      saveSession(data.token, userAccount);
+      onLogin(userAccount);
     } catch (requestError) {
       setError(requestError?.response?.data?.message || 'Usuario o contraseña incorrectos.');
     } finally {
@@ -65,12 +68,20 @@ const Login = ({ onLogin }) => {
           <div className="form-group">
             <label>Contraseña</label>
             <input 
-              type="password" 
+              type={showPassword ? 'text' : 'password'} 
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder=""
               required
             />
+            <label className="login-show-password">
+              <input
+                type="checkbox"
+                checked={showPassword}
+                onChange={(e) => setShowPassword(e.target.checked)}
+              />
+              <span>Mostrar contraseña</span>
+            </label>
           </div>
           {error && <p className="login-error" role="alert">{error}</p>}
           <button type="submit" className="btn-cfe w-100" disabled={isLoading}>

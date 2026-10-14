@@ -77,13 +77,25 @@ const resolveModelData = (row, modelosMap) => {
   };
 };
 
-const formatDeviceRow = (row, departamentosMap, modelosMap) => {
+const resolvePosition = (row, latestLocation) => {
+  if (latestLocation) {
+    const lat = Number(latestLocation.latitude);
+    const lng = Number(latestLocation.longitude);
+    if (!Number.isNaN(lat) && !Number.isNaN(lng) && Number.isFinite(lat) && Number.isFinite(lng)) {
+      return [lat, lng];
+    }
+  }
+  return normalizePosition(row);
+};
+
+const formatDeviceRow = (row, departamentosMap, modelosMap, latestLocation = null) => {
   const inventoryValue = pickFirstValue(row, ['asset_tag', 'inventario', 'numero_inventario', 'n_inventario', 'inventory_number', 'serial', 'no_inventario', 'num_inventario', 'codigo']);
   const serieValue = pickFirstValue(row, ['serie', 'numero_serie', 'n_serie', 'serial_number', 'serie_tel', 'imei', 'imei_number', 'numero_imei', 'imei_tel', 'telefono_imei', 'serial_imei', 'celular_imei', 'id']);
   const inventoryNumber = normalizeInventory(inventoryValue ?? row.asset_tag);
   const serie = normalizeSerie(serieValue ?? row.serie ?? row.imei ?? 'N/A');
   const modelInfo = resolveModelData(row, modelosMap);
   const realIdentifier = row.serie ?? row.imei ?? row.asset_tag ?? row.id ?? null;
+  const lastUpdate = latestLocation?.created_at ?? row.updated_at ?? row.created_at ?? 'Sin fecha';
 
   return {
     databaseId: realIdentifier,
@@ -95,7 +107,7 @@ const formatDeviceRow = (row, departamentosMap, modelosMap) => {
     status: normalizeStatus(row.location_enabled === true ? 'En línea' : 'Fuera de línea'),
     location: departamentosMap[row.departamento_id] ?? row.location ?? 'Sin ubicación',
     departmentId: row.departamento_id ?? null,
-    position: normalizePosition(row),
+    position: resolvePosition(row, latestLocation),
     phoneNumber: row.phone_number ?? '+52 000 000 0000',
     brand: modelInfo.brand,
     model: modelInfo.model,
@@ -104,7 +116,7 @@ const formatDeviceRow = (row, departamentosMap, modelosMap) => {
     workerRpe: row.worker_rpe ?? 'N/A',
     role: row.worker_position ?? 'Operador',
     puesto: row.worker_position ?? 'Operador',
-    lastUpdate: row.updated_at ?? 'Sin fecha',
+    lastUpdate,
   };
 };
 
@@ -124,15 +136,21 @@ const getDevices = async (req, res) => {
     });
   }
 
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
+
   try {
     const [
       { data: kiosks, error: kiosksError },
       { data: departamentos, error: departmentsError },
       { data: modelos, error: modelsError },
+      { data: latestLocations },
     ] = await Promise.all([
       supabase.from('kioscos').select('*'),
       supabase.from('cat_departamentos').select('id, nombre'),
       supabase.from('cat_marcas_modelos').select('id, marca, modelo'),
+      supabase.from('historial_ubicaciones').select('kiosk_serie, latitude, longitude, created_at').order('created_at', { ascending: false }).limit(300),
     ]);
 
     if (kiosksError) {
@@ -156,8 +174,17 @@ const getDevices = async (req, res) => {
       safeModelos.map((item) => [item.id, item]),
     );
 
+    const latestLocationsMap = {};
+    if (Array.isArray(latestLocations)) {
+      for (const loc of latestLocations) {
+        if (loc.kiosk_serie && !latestLocationsMap[loc.kiosk_serie]) {
+          latestLocationsMap[loc.kiosk_serie] = loc;
+        }
+      }
+    }
+
     const devices = safeKiosks
-      .map((row) => formatDeviceRow(row, departamentosMap, modelosMap))
+      .map((row) => formatDeviceRow(row, departamentosMap, modelosMap, latestLocationsMap[row.serie]))
       .filter((device) => canAccessDevice(device, req.user, departamentosMap));
     return res.json({ devices });
   } catch (error) {

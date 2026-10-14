@@ -1,4 +1,4 @@
-﻿:root {
+:root {
   --cfe-green-deep: #003f28;
   --cfe-green: #007a3d;
   --cfe-green-dark: #005c2e;
@@ -16,6 +16,11 @@
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+}
+
+input::-ms-reveal,
+input::-ms-clear {
+  display: none !important;
 }
 
 body {
